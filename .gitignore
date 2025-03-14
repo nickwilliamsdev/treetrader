@@ -3,6 +3,10 @@ __pycache__/
 *.py[cod]
 *$py.class
 
+# hist/trade/model data ignores
+hist_data/stocks/*
+hist_data/crypto/*
+
 # C extensions
 *.so
 
