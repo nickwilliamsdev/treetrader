@@ -90,7 +90,7 @@ def range_diff(df, lookbacks):
 		df[f"diff_max{l}"] = (max - df['open']) / df['open']
 	df.dropna(inplace=True)
 	return df		
-
+'''
 def apply_change_features(df, lookbacks):
 	columns = df.columns
 	for c in columns:
@@ -99,7 +99,7 @@ def apply_change_features(df, lookbacks):
 				df[f"change_{c}_{l}"] = df[c].pct_change().rolling(l).mean()
 	df.dropna(inplace=True)
 	return df
-
+'''     
 def apply_features_newest(df):
     print(df.head())
     df['close_change'] = df['Close'].pct_change()
