@@ -34,7 +34,7 @@ def percent_change_features(df:pd.DataFrame, columns = None, lookbacks=[1], drop
         df.dropna(inplace=True)
     return df
 
-def apply_slope_features(df, columns, lookbacks=[1], dropna=True):
+def apply_slope_features(df, columns, lookbacks=fib_intervals, dropna=True):
     # adds the arctan2 values for slopes over fractal lookbacks
     for l in lookbacks:
         for c in columns:
@@ -176,7 +176,7 @@ def apply_open_normd(df):
     df.dropna(inplace=True)
     df.reset_index(inplace=True)
     return df
-    
+'''    
 def apply_slope_features(df, lookbacks):
     # adds the arctan2 values for slopes over fractal lookbacks
     columns = df.columns
@@ -194,7 +194,7 @@ def apply_slope_features(df, lookbacks):
     df.reset_index(inplace=True)
     print(df.columns)
     return df
-
+'''
 def add_rsi(df, n=14):
     delta = df.Close.diff()
     delta.dropna(inplace=True)
