@@ -15,6 +15,25 @@ return_ranges = [
 # useful for lookbacks, timeframes of any sort
 fib_intervals = [2, 3, 5, 8, 13, 21, 34, 55, 89]
 
+def apply_zscore_signal(df):
+    """
+    Apply feature engineering and generate trading signals.
+    """
+    # Example: Generate a simple mean reversion signal
+    window = 20
+    z_threshold = 1.0
+
+    # Calculate rolling mean and Z-Score
+    df['RollingMean'] = df['Close'].rolling(window=window).mean()
+    df['ZScore'] = (df['Close'] - df['RollingMean']) / df['Close'].rolling(window=window).std()
+
+    # Generate buy/sell signals
+    df['Signal'] = 0
+    df.loc[df['ZScore'] < -z_threshold, 'Signal'] = 1  # Buy
+    df.loc[df['ZScore'] > z_threshold, 'Signal'] = -1  # Sell
+
+    return df
+
 def cum_norm(df, column='close', drop_min_max=True):
     df['maxes'] = df[column].cummax()
     df['mins'] = df[column].cummin()
@@ -28,7 +47,7 @@ def percent_change_features(df:pd.DataFrame, columns = None, lookbacks=[1], drop
         columns = df.columns
     for c in columns:
         for l in lookbacks:
-            if c != "date":
+            if c != "Date":
                 df[f"change_{c}_{l}"] = df[c].pct_change().rolling(l).mean()
     if dropna:
         df.dropna(inplace=True)
@@ -38,7 +57,7 @@ def apply_slope_features(df, columns, lookbacks=fib_intervals, dropna=True):
     # adds the arctan2 values for slopes over fractal lookbacks
     for l in lookbacks:
         for c in columns:
-            if c != "date":
+            if c != "Date":
                 lookback = df[c].diff(l)
                 df[c +"_angle_" + str(l)] = np.arctan2(lookback, l)
     if dropna:
@@ -56,9 +75,10 @@ def apply_candlestick_features(df):
 
 # applies a new column with 1 for green (positive change) or 0 for if its red (negative change)
 # we will dropna no matter what
-def apply_green_red(df, column=["close"], pct_change_interval=1):
-    df["close_change"] = df["close"].pct_change(pct_change_interval)
-    df.dropna(inplace=True) 
+def apply_green_red(df, column="close", pct_change_interval=1, dropna=True):
+    df["close_change"] = df[column].pct_change(pct_change_interval)
+    if dropna:
+        df.dropna(inplace=True) 
     df["green"] = [1 if x > 0.0 else 0 for x in df["close_change"]]
     return df
 
