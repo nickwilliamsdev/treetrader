@@ -19,6 +19,10 @@ for asset_file in os.listdir(asset_dir):
         # Apply feature engineering
         df = apply_zscore_signal(df)
         
+        # Ensure the Signal column exists
+        if 'Signal' not in df.columns:
+            df['Signal'] = 0  # Default to no signals
+        
         # Calculate expected return
         df['ExpectedReturn'] = df['Signal'] * df['Close'].pct_change().shift(-1)
         ev = df['ExpectedReturn'].mean()
@@ -33,5 +37,14 @@ print(f"The highest EV asset is: {best_asset}")
 # Backtest the strategy on the best asset
 df = pd.read_csv(os.path.join(asset_dir, best_asset), sep=',')
 df['Date'] = pd.to_datetime(df['Date'])
+df = apply_zscore_signal(df)
+
+# Ensure the Signal column exists
+if 'Signal' not in df.columns:
+    df['Signal'] = 0  # Default to no signals
+
 backtester = Backtester(initial_balance=10000)
 result = backtester.simple_backtest(df, signal_column='Signal')
+
+# Plot the performance of the backtest
+backtester.plot_performance(result)

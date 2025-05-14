@@ -1,4 +1,4 @@
-from backtesting import Backtester
+from ..backtester import Backtester
 
 # Initialize the backtester
 backtester = Backtester(initial_balance=10000, transaction_cost=0.001)

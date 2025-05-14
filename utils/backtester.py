@@ -19,18 +19,20 @@ class Backtester:
         Returns:
             pd.DataFrame: DataFrame with portfolio value over time.
         """
-        balance = self.initial_balance
-        position = 0  # Number of shares held
+        balance = 10000  # Starting balance
+        position = 0  # Current position (number of shares)
+        transaction_cost = 0.001  # 0.1% per trade
         df['Portfolio'] = 0  # Track portfolio value
 
         for i in range(len(df)):
-            if df[signal_column].iloc[i] == 1 and balance > 0:  # Buy signal
-                position = (balance * (1 - self.transaction_cost)) / df['Close'].iloc[i]
+            if df.loc[i, signal_column] == 1 and balance > 0:  # Buy signal
+                position = (balance * (1 - transaction_cost)) / df.loc[i, 'Close']
                 balance = 0
-            elif df[signal_column].iloc[i] == -1 and position > 0:  # Sell signal
-                balance = position * df['Close'].iloc[i] * (1 - self.transaction_cost)
+            elif df.loc[i, signal_column] == -1 and position > 0:  # Sell signal
+                balance = position * df.loc[i, 'Close'] * (1 - transaction_cost)
                 position = 0
-            df['Portfolio'].iloc[i] = balance + (position * df['Close'].iloc[i])
+            # Update portfolio value using .loc to avoid chained assignment
+            df.loc[i, 'Portfolio'] = balance + (position * df.loc[i, 'Close'])
 
         return df
 
@@ -82,3 +84,24 @@ class Backtester:
             'Final Balance': final_balance,
             'Total Return (%)': total_return
         }
+
+    def plot_performance(self, df):
+        """
+        Plot the portfolio value over time.
+
+        Args:
+            df (pd.DataFrame): DataFrame containing portfolio values with a 'Portfolio' column.
+        """
+        import matplotlib.pyplot as plt
+
+        if 'Portfolio' not in df.columns:
+            raise ValueError("The DataFrame must contain a 'Portfolio' column to plot performance.")
+
+        plt.figure(figsize=(12, 6))
+        plt.plot(df.index, df['Portfolio'], label='Portfolio Value', color='blue')
+        plt.title("Portfolio Performance Over Time")
+        plt.xlabel("Time")
+        plt.ylabel("Portfolio Value")
+        plt.legend()
+        plt.grid()
+        plt.show()
