@@ -1,5 +1,5 @@
 import pandas as pd
-
+import numpy as np
 class Backtester:
     def __init__(self, initial_balance=10000, transaction_cost=0.001):
         """
@@ -26,13 +26,13 @@ class Backtester:
 
         for i in range(len(df)):
             if df.loc[i, signal_column] == 1 and balance > 0:  # Buy signal
-                position = (balance * (1 - transaction_cost)) / df.loc[i, 'Close']
+                position = (balance * (1 - transaction_cost)) / df.loc[i, 'close']
                 balance = 0
             elif df.loc[i, signal_column] == -1 and position > 0:  # Sell signal
-                balance = position * df.loc[i, 'Close'] * (1 - transaction_cost)
+                balance = position * df.loc[i, 'close'] * (1 - transaction_cost)
                 position = 0
             # Update portfolio value using .loc to avoid chained assignment
-            df.loc[i, 'Portfolio'] = balance + (position * df.loc[i, 'Close'])
+            df.loc[i, 'Portfolio'] = balance + (position * df.loc[i, 'close'])
 
         return df
 
@@ -56,33 +56,49 @@ class Backtester:
         for i in range(len(df)):
             if df[signal_column].iloc[i] == 1 and balance > 0:  # Buy signal
                 bet_amount = balance * bet_fraction
-                position += (bet_amount * (1 - self.transaction_cost)) / df['Close'].iloc[i]
+                position += (bet_amount * (1 - self.transaction_cost)) / df['close'].iloc[i]
                 balance -= bet_amount
                 bet_fraction *= 2  # Double the bet for martingale
             elif df[signal_column].iloc[i] == -1 and position > 0:  # Sell signal
-                balance += position * df['Close'].iloc[i] * (1 - self.transaction_cost)
+                balance += position * df['close'].iloc[i] * (1 - self.transaction_cost)
                 position = 0
                 bet_fraction = base_bet_fraction  # Reset bet fraction after a win
-            df['Portfolio'].iloc[i] = balance + (position * df['Close'].iloc[i])
+            df['Portfolio'].iloc[i] = balance + (position * df['close'].iloc[i])
 
         return df
 
-    def calculate_performance(self, df):
+    def calculate_performance(self, df, risk_free_rate=0.0):
         """
         Calculate performance metrics for the backtest.
         
         Args:
             df (pd.DataFrame): DataFrame containing portfolio values.
+            risk_free_rate (float): Risk-free rate for Sharpe ratio calculation (annualized, e.g., 0.02 for 2%).
         
         Returns:
             dict: Dictionary with performance metrics (final balance, total return, etc.).
         """
         final_balance = df['Portfolio'].iloc[-1]
         total_return = (final_balance - self.initial_balance) / self.initial_balance * 100
+
+        # Calculate daily returns
+        df['Daily Return'] = df['Portfolio'].pct_change().fillna(0)
+
+        # Max Drawdown
+        cumulative_max = df['Portfolio'].cummax()
+        drawdown = (df['Portfolio'] - cumulative_max) / cumulative_max
+        max_drawdown = drawdown.min() * 100  # as percentage
+
+        # Sharpe Ratio (assume 252 trading days)
+        excess_daily_return = df['Daily Return'] - (risk_free_rate / 252)
+        sharpe_ratio = np.mean(excess_daily_return) / np.std(excess_daily_return, ddof=1) * np.sqrt(252) if np.std(excess_daily_return, ddof=1) > 0 else np.nan
+
         return {
             'Initial Balance': self.initial_balance,
             'Final Balance': final_balance,
-            'Total Return (%)': total_return
+            'Total Return (%)': total_return,
+            'Max Drawdown (%)': max_drawdown,
+            'Sharpe Ratio': sharpe_ratio
         }
 
     def plot_performance(self, df):

@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-
+import ta
 #useful for creating categorical features
 return_ranges = [
     (-1.0, -.5),
@@ -15,23 +15,32 @@ return_ranges = [
 # useful for lookbacks, timeframes of any sort
 fib_intervals = [2, 3, 5, 8, 13, 21, 34, 55, 89]
 
-def apply_zscore_signal(df):
+def apply_zscore_signal(df, window=13, z_threshold=1.0):
     """
     Apply feature engineering and generate trading signals.
     """
-    # Example: Generate a simple mean reversion signal
-    window = 20
-    z_threshold = 1.0
-
-    # Calculate rolling mean and Z-Score
-    df['RollingMean'] = df['Close'].rolling(window=window).mean()
-    df['ZScore'] = (df['Close'] - df['RollingMean']) / df['Close'].rolling(window=window).std()
+    # Calculate rolling mean and Z-Sco21
+    df['RollingMean'] = df['close'].rolling(window=window).mean()
+    df['ZScore'] = (df['close'] - df['RollingMean']) / df['close'].rolling(window=window).std()
 
     # Generate buy/sell signals
     df['Signal'] = 0
     df.loc[df['ZScore'] < -z_threshold, 'Signal'] = 1  # Buy
     df.loc[df['ZScore'] > z_threshold, 'Signal'] = -1  # Sell
 
+    return df
+
+def ensemble_features(df):
+    df['ma_short'] = df['close'].rolling(8).mean()
+    df['ma_long'] = df['close'].rolling(34).mean()
+    df['rsi'] = ta.momentum.RSIIndicator(df['close'], window=13).rsi()
+    df['Signal'] = (
+        (df['close'].pct_change(5) > 0).astype(int) +
+        (df['ma_short'] > df['ma_long']).astype(int) +
+        (df['rsi'] < 30).astype(int)
+    )
+    # Buy if 2 or more signals agree
+    df['Signal'] = df['Signal'].apply(lambda x: 1 if x >= 2 else -1 if x <= -2 else 0)
     return df
 
 def cum_norm(df, column='close', drop_min_max=True):
