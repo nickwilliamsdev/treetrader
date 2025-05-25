@@ -467,5 +467,3 @@ if __name__ == "__main__":
     # for i, child in enumerate(tuner.root.children):
     #     if i >= 5: break
     #     print(f"  Child {i+1}: HPs={child.hyperparameters}, Avg Reward={child.total_reward / child.visits if child.visits > 0 else 'N/A'}")
-
-```
