@@ -4,7 +4,7 @@ from feature_functions import apply_zscore_signal
 from utils.backtester import Backtester
 
 # Directory containing asset data
-asset_dir = './hist_data/crypto/kraken_4hr/'
+asset_dir = './hist_data/crypto/kraken_1day/'
 
 # Initialize EV dictionary
 asset_ev_dict = {}

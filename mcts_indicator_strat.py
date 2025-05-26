@@ -103,7 +103,6 @@ class ExampleTradingStrategy(TradingStrategy):
         """
         short_window = hyperparameters['short_window']
         long_window = hyperparameters['long_window']
-        initial_capital = hyperparameters['initial_capital']
         transaction_cost_bps = hyperparameters['transaction_cost_bps'] / 10000.0 # Convert bps to decimal
 
         if short_window >= long_window:

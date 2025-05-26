@@ -35,7 +35,18 @@ class KrakenWrapper(object):
         self.majors = ['BTC', 'ETH', "LTC"]
         return
 
-    def get_assets(self, base_pair):
+    # gets all assets or only assets for a given base pair
+    def get_assets(self, base_pair=""):
+        tradeable_assets = requests.get(self.endpoints["trade_assets"])
+        asset_list = []
+        base_len = len(base_pair)
+        #df = pd.DataFrame(tradeable_assets.json())
+        for i in tradeable_assets.json()["result"]:
+            if (base_pair == "" or i[-base_len:] == base_pair):
+                asset_list.append(i)
+        return asset_list
+    
+    def get_usdt_assets(self):
         tradeable_assets = requests.get(self.endpoints["trade_assets"])
         asset_list = []
         #df = pd.DataFrame(tradeable_assets.json())
@@ -60,7 +71,7 @@ class KrakenWrapper(object):
             return
 
     def pull_kraken_hist_usd(self):
-        sym_list = self.get_assets("USD")
+        sym_list = self.get_usdt_assets()
         lookback_ts = datetime.today() - timedelta(self.look_back)
         hist_dict = {}
         longest = 0
