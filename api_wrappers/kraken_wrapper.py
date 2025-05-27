@@ -27,7 +27,7 @@ class KrakenWrapper(object):
         "2week": 21600
     }
 
-    def __init__(self, key="", secret="", default_lookback = 720, lb_interval = "1day"):
+    def __init__(self, key="", secret="", default_lookback = 1000, lb_interval = "1day"):
         self.key = key
         self.secret = secret
         self.look_back = default_lookback
@@ -41,7 +41,9 @@ class KrakenWrapper(object):
         asset_list = []
         base_len = len(base_pair)
         #df = pd.DataFrame(tradeable_assets.json())
-        for i in tradeable_assets.json()["result"]:
+        results = tradeable_assets.json()["result"]
+        #print(results)
+        for i in results:
             if (base_pair == "" or i[-base_len:] == base_pair):
                 asset_list.append(i)
         return asset_list
@@ -69,6 +71,15 @@ class KrakenWrapper(object):
             syms = self.majors
         for s in syms:
             return
+
+    def pull_kraken_hist_usd_simple(self):
+        sym_list = self.get_assets("USD")
+        lookback_ts = datetime.today() - timedelta(self.look_back)
+        hist_dict = {}
+        for i in sym_list:
+            hist_req = requests.get(self.endpoints["ohlc_bars"].format(i, lookback_ts, self.lookback_intervals[self.lb_interval]))
+            hist_dict[i] = hist_req.json()["result"][i]
+        return hist_dict
 
     def pull_kraken_hist_usd(self):
         sym_list = self.get_usdt_assets()
