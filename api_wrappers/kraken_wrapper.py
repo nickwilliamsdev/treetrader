@@ -34,6 +34,48 @@ class KrakenWrapper(object):
         self.lb_interval = lb_interval
         self.majors = ['BTC', 'ETH', "LTC"]
         return
+    
+def update_or_create_hist_files(self, data_dir="./hist_data/crypto/kraken_1day/"):
+    """
+    Update existing historical files with new data or create new files if they don't exist.
+    
+    Args:
+        data_dir (str): Directory where historical files are stored.
+    """
+    sym_list = self.get_usdt_assets()
+    lb_int = self.lookback_intervals[self.lb_interval]
+    lookback_ts = int((datetime.today() - timedelta(self.look_back)).timestamp())
+
+    for sym in sym_list:
+        file_path = os.path.join(data_dir, f"{sym}.txt")
+        try:
+            if os.path.exists(file_path):
+                # Update existing file
+                dataframe = pd.read_csv(file_path)
+                last_ts = dataframe['date'].iloc[-1]
+                hist_req = requests.get(self.endpoints["ohlc_bars"].format(sym, last_ts, lb_int))
+                new_data = hist_req.json()["result"][sym]
+                if new_data:
+                    new_df = pd.DataFrame(new_data, columns=self.bar_data_names)
+                    new_df["date"] = new_df["date"] * 1000  # Convert timestamp to milliseconds
+                    new_df.drop(columns=["drop", "vwap"], inplace=True)
+                    dataframe = pd.concat([dataframe, new_df], ignore_index=True)
+                    dataframe.to_csv(file_path, index=False)
+                    print(f"Updated {sym} with new data.")
+                else:
+                    print(f"No new data for {sym}.")
+            else:
+                # Create new file
+                hist_req = requests.get(self.endpoints["ohlc_bars"].format(sym, lookback_ts, lb_int))
+                new_data = hist_req.json()["result"][sym]
+                if new_data:
+                    new_df = pd.DataFrame(new_data, columns=self.bar_data_names)
+                    new_df["date"] = new_df["date"] * 1000  # Convert timestamp to milliseconds
+                    new_df.drop(columns=["drop", "vwap"], inplace=True)
+                    new_df.to_csv(file_path, index=False)
+                    print(f"Created new file for {sym}.")
+        except Exception as e:
+            print(f"Error processing {sym}: {e}")
 
     # gets all assets or only assets for a given base pair
     def get_assets(self, base_pair=""):
