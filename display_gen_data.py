@@ -1,6 +1,6 @@
 from utils.synthetic_data_service import SyntheticWienerGenerator, SyntheticOHLCVGenerator
 from matplotlib import pyplot as plt
-ohlc_gen_service = SyntheticOHLCVGenerator(n_steps=1000, mu=-0.00, sigma=0.01, dt=1, seed=42)
+ohlc_gen_service = SyntheticOHLCVGenerator(n_steps=1000, mu=0.0, sigma=0.0001, dt=1, seed=42)
 
 test_df = ohlc_gen_service.generate(start=100.0)
 
