@@ -205,3 +205,15 @@ class KrakenWrapper(object):
                 print(f"Unexpected {err}, {type(err)}")
                 #raise
         return new_data
+    
+    def load_hist_files(self, data_dir="./hist_data/crypto/kraken_1day/"):
+        df_dict = {}
+        for filename in os.listdir(data_dir):
+            if filename.endswith(".txt"):
+                filepath = os.path.join(data_dir, filename)
+                try:
+                    df = pd.read_csv(filepath)
+                    df_dict[filename] = df
+                except Exception as e:
+                    print(f"Error reading {filename}: {e}")
+        return df_dict
