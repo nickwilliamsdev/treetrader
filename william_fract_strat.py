@@ -78,6 +78,11 @@ print(df.head())
 print(df[df['fractal_up'] | df['fractal_down']].head())
 df = backtest_fractals(df)
 
+print(df[df['fractal_up']].head(10))
+print(df[df['fractal_down']].head(10))
+print("Total fractal_ups:", df['fractal_up'].sum())
+print("Total fractal_downs:", df['fractal_down'].sum())
+
 # Plot equity
 plt.figure(figsize=(12,6))
 plt.plot(df.index, df['Equity'], label="Fractal Strategy", color='blue')

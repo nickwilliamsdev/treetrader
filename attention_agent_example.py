@@ -1,3 +1,5 @@
+from networks import CausalAttentionAgent
+import torch
 # --- Example Usage ---
 # Define hyperparameters for the model
 STATE_DIM = 10  # e.g., Open, High, Low, Close, Volume, and other indicators
