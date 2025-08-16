@@ -27,3 +27,10 @@ for ratio in [0.0, 0.236, 0.382, 0.5, 0.618, 1.0]:
     plt.axhline(y=df[f'fib_{int(ratio*1000)}'].iloc[-1], color='r', linestyle='--', label=f'Fib {ratio}')
 plt.legend()
 plt.show()
+
+plt.figure(figsize=(12, 6))
+plt.plot(df['time'], df['close'], label='Synthetic Close Price')
+for ratio in [0.0, 0.236, 0.382, 0.5, 0.618, 1.0]:
+    plt.plot(df['time'], df[f'fib_{int(ratio*1000)}'], linestyle='--', label=f'Fib {ratio}')
+plt.legend()
+plt.show()
