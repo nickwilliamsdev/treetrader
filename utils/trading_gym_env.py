@@ -199,6 +199,9 @@ if __name__ == '__main__':
     
     print("Initial observation shape:", observation.shape)
     
+    # Store rewards for visualization
+    rewards = []
+
     # Example of a random walk in the environment
     for _ in range(10):
         # A random action (0=Hold, 1=Buy, 2=Sell)
@@ -206,8 +209,20 @@ if __name__ == '__main__':
         
         observation, reward, done, truncated, info = env.step(action)
         
+        rewards.append(reward)  # Store the reward
+        
         print(f"Action: {action}, Reward: {reward:.2f}, Done: {done}, Truncated: {truncated}")
         
         if done or truncated:
             print("Episode finished.")
             break
+
+    # Plot the rewards
+    import matplotlib.pyplot as plt
+    plt.figure(figsize=(10, 6))
+    plt.plot(rewards, marker='o', label='Rewards')
+    plt.xlabel('Step')
+    plt.ylabel('Reward')
+    plt.title('Rewards Over Time')
+    plt.legend()
+    plt.show()
