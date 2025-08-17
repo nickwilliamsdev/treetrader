@@ -109,10 +109,10 @@ class TradingEnv(gym.Env):
         self.current_step += 1
         
         # Get the current price (we'll use the 'close' price for simplicity)
-        current_price = self.df.iloc[self.current_step]['Close']
+        current_price = self.df.iloc[self.current_step]['close']
         
         # Get the next price for calculating reward
-        next_price = self.df.iloc[self.current_step + 1]['Close']
+        next_price = self.df.iloc[self.current_step + 1]['close']
 
         # Determine the action and update the portfolio
         if action == 1:  # Buy
@@ -167,62 +167,4 @@ class TradingEnv(gym.Env):
                   f"Shares: {self.shares:.2f} | "
                   f"Net Worth: {self.net_worth:.2f}")
 
-# --- Example of creating a dummy dataset and using the environment ---
-# 1. Create a dummy DataFrame with OHLCV data
-def create_dummy_data(rows=200):
-    """Generates a Pandas DataFrame with dummy OHLCV data."""
-    dates = pd.to_datetime(pd.date_range(start="2023-01-01", periods=rows, freq="D"))
-    data = {
-        'Open': np.random.uniform(100, 150, rows),
-        'High': np.random.uniform(150, 200, rows),
-        'Low': np.random.uniform(50, 100, rows),
-        'Close': np.random.uniform(100, 150, rows),
-        'Volume': np.random.randint(100000, 500000, rows)
-    }
-    df = pd.DataFrame(data, index=dates)
-    
-    # Simple logic to make the prices somewhat trend
-    df['Close'] = df['Close'].rolling(window=10, min_periods=1).mean()
-    df['Open'] = df['Close'].shift(1)
-    df.fillna(method='bfill', inplace=True)
-    return df
 
-# 2. Generate the data and create the environment instance
-if __name__ == '__main__':
-    dummy_df = create_dummy_data(rows=500)
-    
-    # The `window_size` here should match the `seq_len` of your PyTorch model
-    env = TradingEnv(df=dummy_df, window_size=60)
-    
-    # Reset the environment
-    observation, info = env.reset()
-    
-    print("Initial observation shape:", observation.shape)
-    
-    # Store rewards for visualization
-    rewards = []
-
-    # Example of a random walk in the environment
-    for _ in range(10):
-        # A random action (0=Hold, 1=Buy, 2=Sell)
-        action = env.action_space.sample()
-        
-        observation, reward, done, truncated, info = env.step(action)
-        
-        rewards.append(reward)  # Store the reward
-        
-        print(f"Action: {action}, Reward: {reward:.2f}, Done: {done}, Truncated: {truncated}")
-        
-        if done or truncated:
-            print("Episode finished.")
-            break
-
-    # Plot the rewards
-    import matplotlib.pyplot as plt
-    plt.figure(figsize=(10, 6))
-    plt.plot(rewards, marker='o', label='Rewards')
-    plt.xlabel('Step')
-    plt.ylabel('Reward')
-    plt.title('Rewards Over Time')
-    plt.legend()
-    plt.show()
