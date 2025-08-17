@@ -13,7 +13,16 @@ class TradingEnv(gym.Env):
     """
     metadata = {"render_modes": ["human"]}
 
-    def __init__(self, df, window_size=60, render_mode=None):
+    def __init__(
+            self, 
+            df, 
+            window_size=500, 
+            render_mode=None, 
+            buy_percentage=0.1, 
+            sell_percentage=0.1,
+            initial_balance=1000.0,
+            transaction_cost=0.001
+    ):
         super().__init__()
         
         # DataFrame containing historical market data (e.g., OHLCV)
