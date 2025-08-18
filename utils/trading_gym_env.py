@@ -54,7 +54,9 @@ class TradingEnv(gym.Env):
         self.balance = self.initial_balance
         self.shares = 0
         self.net_worth = self.initial_balance
-        
+        self.buy_percentage = buy_percentage
+        self.sell_percentage = sell_percentage
+        self.transaction_cost = transaction_cost
         # For rendering/tracking
         self.history = []
 
@@ -86,8 +88,9 @@ class TradingEnv(gym.Env):
         """
         super().reset(seed=seed)
         
-        # Reset position to a random starting point to prevent memorization
-        self.current_step = random.randint(self.window_size, len(self.df) - 2)
+        # Reset position to start, memorization isnt an issue as
+        # we are newing up a df and env for each generation
+        self.current_step = self.window_size
         
         # Reset portfolio
         self.balance = self.initial_balance
