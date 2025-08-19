@@ -16,7 +16,7 @@ if __name__ == '__main__':
     rewards = []
 
     # Example of a random walk in the environment
-    for _ in range(10):
+    for _ in range(100):
         # A random action (0=Hold, 1=Buy, 2=Sell)
         action = env.action_space.sample()
         
@@ -33,9 +33,10 @@ if __name__ == '__main__':
     # Plot the rewards
     import matplotlib.pyplot as plt
     plt.figure(figsize=(10, 6))
-    plt.plot(rewards, marker='o', label='Rewards')
+    plt.plot(env.history, marker='o', label='Rewards')
     plt.xlabel('Step')
     plt.ylabel('Reward')
     plt.title('Rewards Over Time')
     plt.legend()
     plt.show()
+

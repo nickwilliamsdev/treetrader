@@ -149,7 +149,7 @@ class TradingEnv(gym.Env):
         self.net_worth = current_net_worth
         
         # Update history for rendering
-        self.history.append({'net_worth': self.net_worth})
+        self.history.append(self.net_worth)
         
         # Check for termination conditions
         # The episode ends if we run out of steps or our net worth drops too low.
