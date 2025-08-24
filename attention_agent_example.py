@@ -1,20 +1,45 @@
-from networks import CausalAttentionAgent
+from networks.attention_agent import CausalAttentionAgent
 import torch
-# --- Example Usage ---
-# Define hyperparameters for the model
-STATE_DIM = 10  # e.g., Open, High, Low, Close, Volume, and other indicators
-ACTION_DIM = 3  # e.g., Buy, Sell, Hold
-SEQ_LEN = 60    # Look-back window of 60 timesteps
+from utils.trading_gym_env import TradingEnv
+from utils.synthetic_data_service import SyntheticOHLCVGenerator
+import pandas as pd
 
-# Instantiate the model
-agent_model = CausalAttentionAgent(state_dim=STATE_DIM, action_dim=ACTION_DIM, seq_len=SEQ_LEN)
+if __name__ == '__main__':
+    dummy_df = SyntheticOHLCVGenerator(n_steps=500, mu=0.001, sigma=0.1, dt=1, seed=42).generate(start=100.0)
+    dummy_df = dummy_df[['time', 'open', 'high', 'low', 'close', 'volume']].copy()
+    
+    # --- Example Usage ---
+    # Define hyperparameters for the model
+    STATE_DIM = len(dummy_df.columns)  # e.g., Open, High, Low, Close, Volume, and other indicators
+    ACTION_DIM = 3  # e.g., Buy, Sell, Hold
+    SEQ_LEN = 60    # Look-back window of 60 timesteps
 
-# Create a dummy batch of historical data
-batch_size = 4
-dummy_input = torch.randn(batch_size, SEQ_LEN, STATE_DIM)
+    # Instantiate the model
+    agent_model = CausalAttentionAgent(state_dim=STATE_DIM, action_dim=ACTION_DIM, seq_len=SEQ_LEN)
+    
+    
+    # The `window_size` here should match the `seq_len` of your PyTorch model
+    env = TradingEnv(df=dummy_df, window_size=SEQ_LEN)
 
-# Get the action logits from the model
-action_logits = agent_model(dummy_input)
+    # Reset the environment
+    observation, info = env.reset()
+    
+    print("Initial observation shape:", observation.shape)
+    
+    # Store rewards for visualization
+    rewards = []
 
-print("Input shape:", dummy_input.shape)
-print("Output shape:", action_logits.shape)
+    # Example of a random walk in the environment
+    for _ in range(100):
+        # Get action from the model
+        action = agent_model(observation)
+
+        observation, reward, done, truncated, info = env.step(action)
+        
+        rewards.append(reward)  # Store the reward
+        
+        print(f"Action: {action}, Reward: {reward:.2f}, Done: {done}, Truncated: {truncated}")
+        
+        if done or truncated:
+            print("Episode finished.")
+            break
