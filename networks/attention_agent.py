@@ -114,7 +114,8 @@ class CausalAttentionAgent(nn.Module):
             torch.Tensor: Logits for the actions, of shape (batch_size, action_dim).
         """
         # Ensure the input shape is correct
-        assert state_history.size(1) == self.seq_len and state_history.size(2) == self.state_dim, \
+        print(state_history.shape)
+        assert state_history.shape[1] == self.seq_len and state_history.shape[2] == self.state_dim, \
             "Input tensor dimensions do not match the model's sequence length or state dimension."
             
         # Project the input features

@@ -31,8 +31,11 @@ if __name__ == '__main__':
 
     # Example of a random walk in the environment
     for _ in range(100):
+        # Convert observation to a PyTorch tensor and add batch dimension
+        batched_observation = torch.unsqueeze(torch.tensor(observation, dtype=torch.float32), dim=0)
+
         # Get action from the model
-        action = agent_model(observation)
+        action = agent_model(batched_observation)
 
         observation, reward, done, truncated, info = env.step(action)
         
