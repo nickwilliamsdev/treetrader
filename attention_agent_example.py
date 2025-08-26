@@ -35,8 +35,7 @@ if __name__ == '__main__':
         batched_observation = torch.unsqueeze(torch.tensor(observation, dtype=torch.float32), dim=0)
 
         # Get action from the model
-        action = agent_model(batched_observation)
-
+        action = torch.argmax(agent_model(batched_observation), dim=-1)
         observation, reward, done, truncated, info = env.step(action)
         
         rewards.append(reward)  # Store the reward
