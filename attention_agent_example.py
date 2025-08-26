@@ -3,6 +3,9 @@ import torch
 from utils.trading_gym_env import TradingEnv
 from utils.synthetic_data_service import SyntheticOHLCVGenerator
 import pandas as pd
+import matplotlib.pyplot as plt
+from diffevo import DDIMScheduler, BayesianGenerator
+
 
 if __name__ == '__main__':
     dummy_df = SyntheticOHLCVGenerator(n_steps=500, mu=0.001, sigma=0.1, dt=1, seed=42).generate(start=100.0)
@@ -45,3 +48,8 @@ if __name__ == '__main__':
         if done or truncated:
             print("Episode finished.")
             break
+    plt.plot(env.history)
+    plt.xlabel("Time Step")
+    plt.ylabel("Portfolio Value")
+    plt.title("Trading Agent Performance")
+    plt.show()
