@@ -6,6 +6,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from diffevo import DDIMScheduler, BayesianGenerator
 from torch.nn.utils import parameters_to_vector
+from utils.fitess_funcs import batched_fitness_function
 
 def run(agent):
     rewards = []
