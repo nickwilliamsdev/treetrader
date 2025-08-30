@@ -7,8 +7,12 @@ import matplotlib.pyplot as plt
 from diffevo import DDIMScheduler, BayesianGenerator
 from torch.nn.utils import parameters_to_vector
 from utils.fitess_funcs import batched_fitness_function
+from api_wrappers.kraken_wrapper import KrakenWrapper
 
-def run(agent):
+dfs = KrakenWrapper.get_usdt_assets()
+
+
+def run(x_array):
     rewards = []
     # Example of a random walk in the environment
     for _ in range(100):
@@ -49,14 +53,3 @@ if __name__ == '__main__':
     population_history = [x * SCALING]
     x0_population = [x * SCALING]
     observations = []
-
-    # The `window_size` here should match the `seq_len` of your PyTorch model
-    env = TradingEnv(df=dummy_df, window_size=SEQ_LEN)
-
-
-
-    plt.plot(env.history)
-    plt.xlabel("Time Step")
-    plt.ylabel("Portfolio Value")
-    plt.title("Trading Agent Performance")
-    plt.show()
