@@ -5,29 +5,20 @@ from utils.synthetic_data_service import SyntheticOHLCVGenerator
 import pandas as pd
 import matplotlib.pyplot as plt
 from diffevo import DDIMScheduler, BayesianGenerator
-from torch.nn.utils import parameters_to_vector
+from torch.nn.utils import parameters_to_vector, vector_to_parameters
 from utils.fitess_funcs import batched_fitness_function
 from api_wrappers.kraken_wrapper import KrakenWrapper
 
 dfs = KrakenWrapper.get_usdt_assets()
 
 
-def run(x_array):
+def run(x_array, population, agent):
     rewards = []
     # Example of a random walk in the environment
-    for _ in range(100):
-        # Convert observation to a PyTorch tensor and add batch dimension
-        batched_observation = torch.unsqueeze(torch.tensor(observation, dtype=torch.float32), dim=0)
-
-        # Get action from the model
-        action = torch.argmax(agent(batched_observation), dim=-1)
-        observation, reward, done, truncated, info = env.step(action)
-        
-        rewards.append(reward)  # Store the reward
-        
-        if done or truncated:
-            return sum(rewards)
-    return sum(rewards)
+    for xp in population:
+        vector_to_parameters(torch.tensor(xp, dtype=torch.float32), agent.parameters())
+        rewards.append(batched_fitness_function(agent, x_array))
+    return rewards
 
 if __name__ == '__main__':
     dummy_df = SyntheticOHLCVGenerator(n_steps=500, mu=0.001, sigma=0.1, dt=1, seed=42).generate(start=100.0)
@@ -48,6 +39,7 @@ if __name__ == '__main__':
     dim = parameters_to_vector(agent_model.parameters()).shape[0]
     x = torch.randn(POP_SIZE, dim)
     
+    for
     # list for training rewards and history
     reward_history = []
     population_history = [x * SCALING]
