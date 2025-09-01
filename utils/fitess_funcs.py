@@ -18,7 +18,7 @@ def batched_fitness_function(agent, states, price_changes):
     for t in range(seq_len - 1):  # Iterate over time steps
         # Get the current state for all assets at time t
         current_states = states[:, t, :]  # Shape: (batch_dim, state_dim)
-
+        print(current_states.shape)
         # Get actions for all assets in the batch
         actions = agent(current_states)  # Shape: (batch_dim, 2) -> 2 actions: Buy, Sell
         actions = torch.argmax(actions, dim=-1)  # Convert to discrete actions (0=Sell, 1=Buy)
