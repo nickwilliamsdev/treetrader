@@ -138,7 +138,6 @@ class CausalAttentionAgent(nn.Module):
         
         # Policy output
         action_logits = self.policy_head(current_representation)
-        
         return action_logits
 
 
