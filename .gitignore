@@ -6,7 +6,6 @@ __pycache__/
 # hist/trade/model data ignores
 hist_data/stocks/*
 hist_data/crypto/*
-
 # C extensions
 *.so
 
