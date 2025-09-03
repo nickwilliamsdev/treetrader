@@ -1,6 +1,6 @@
 import os
 import pandas as pd
-from feature_functions import apply_zscore_signal
+from utils.feature_functions import apply_zscore_signal
 from utils.backtester import Backtester
 
 # Directory containing asset data
