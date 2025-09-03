@@ -24,7 +24,7 @@ def batched_fitness_function(agent, states, price_changes):
         actions = torch.argmax(actions, dim=-1)  # Convert to discrete actions (0=Sell, 1=Buy)
 
         # Convert actions to -1 (Sell) and 1 (Buy)
-        #actions = actions.float() * 2 - 1  # Map (0, 1) -> (-1, 1)
+        actions = actions.float() * 2 - 1  # Map (0, 1) -> (-1, 1)
 
         # Calculate rewards as the product of actions and percentage changes
         rewards += (actions * price_changes[:, t + 1]).unsqueeze(-1)  # Shape: (batch, 1)
