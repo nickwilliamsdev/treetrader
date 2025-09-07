@@ -62,7 +62,7 @@ def percent_change_features(df:pd.DataFrame, columns = None, lookbacks=[1], drop
         df.dropna(inplace=True)
     return df
 
-def apply_slope_features(df, columns, lookbacks=fib_intervals, dropna=True):
+def apply_slope_features(df, columns, lookbacks=fib_intervals, dropna=False):
     # adds the arctan2 values for slopes over fractal lookbacks
     for l in lookbacks:
         for c in columns:

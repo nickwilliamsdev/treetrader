@@ -146,6 +146,9 @@ class KrakenWrapper(object):
                             else:
                                 f.write(str(next_line[x]))
                         f.write("\n")
+            else:
+                del hist_dict[i]
+        return hist_dict
 
     def pull_kraken_majors_usd(self, lb = "1day"):
         sym_list = [s + "/USD" for s in self.majors]
