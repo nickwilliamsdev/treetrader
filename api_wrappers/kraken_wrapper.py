@@ -127,6 +127,7 @@ class KrakenWrapper(object):
         sym_list = self.get_usdt_assets()
         lookback_ts = datetime.today() - timedelta(self.look_back)
         hist_dict = {}
+        return_dict = {}
         longest = 0
         for i in sym_list:
             hist_req = requests.get(self.endpoints["ohlc_bars"].format(i, lookback_ts, self.lookback_intervals[self.lb_interval]))
@@ -135,6 +136,7 @@ class KrakenWrapper(object):
                 longest = len(hist_dict[i])
         for i in hist_dict:
             if len(hist_dict[i]) == longest:
+                return_dict[i] = hist_dict[i]
                 with open(f"./hist_data/crypto/kraken_{self.lb_interval}/"+ i + ".txt", "w") as f:
                     f.write("date,open,high,low,close,vwap,vol\n")
                     for l in range(len(hist_dict[i])):
@@ -146,9 +148,7 @@ class KrakenWrapper(object):
                             else:
                                 f.write(str(next_line[x]))
                         f.write("\n")
-            else:
-                del hist_dict[i]
-        return hist_dict
+        return return_dict
 
     def pull_kraken_majors_usd(self, lb = "1day"):
         sym_list = [s + "/USD" for s in self.majors]
