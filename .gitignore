@@ -7,6 +7,7 @@ __pycache__/
 hist_data/stocks/*
 hist_data/crypto/*
 best_attention_agent.pth
+best_attention_agent_4hr.pth
 # C extensions
 *.so
 
