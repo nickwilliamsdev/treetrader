@@ -6,8 +6,10 @@ __pycache__/
 # hist/trade/model data ignores
 hist_data/stocks/*
 hist_data/crypto/*
-best_attention_agent.pth
-best_attention_agent_4hr.pth
+
+# Ignore all PyTorch model files
+*.pth
+
 # C extensions
 *.so
 
