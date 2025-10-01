@@ -16,16 +16,16 @@ class MarketEnv:
         self.t = 0
         self.price = 100.0
         self.position = 0
-        self.cash = 0.0
+        self.cash = 1000.0
         self.history = [0.0] * 10  # last 10 returns
         return self._obs()
 
     def step(self, action):
         # action: 0=hold, 1=buy, 2=sell
-        if action == 1:  # buy
+        if action == 0:  # buy
             self.position += 1
             self.cash -= self.price * (1 + self.cost)
-        elif action == 2 and self.position > 0:  # sell
+        elif action == 1 and self.position > 0:  # sell
             self.position -= 1
             self.cash += self.price * (1 - self.cost)
 
@@ -45,7 +45,7 @@ class MarketEnv:
 
 # ---- Policy + Value Net ----
 class Net(nn.Module):
-    def __init__(self, state_dim, action_dim=3):
+    def __init__(self, state_dim, action_dim=2):
         super().__init__()
         self.fc = nn.Sequential(
             nn.Linear(state_dim, 64), nn.ReLU(),
@@ -126,13 +126,41 @@ def self_play(env, net, n_games=5):
             data.append((state, pi, final_value))
     return data
 
+def live_run(env, net):
+    s = env.reset()
+    done = False
+    values = []
+    prices = []
+    actions = []
+    while not done:
+        pi = mcts(env, net, s)
+        a = np.argmax(pi)  # Take the most probable action
+        actions.append(a)
+        s, r, done, _ = env.step(a)
+        values.append(env.cash + env.position * env.price)
+        prices.append(env.price)
+    print("Live run finished.")
+    print("Final portfolio value:", values[-1])
+    print("Actions taken:", actions)
+    # Optional: plot results
+    try:
+        import matplotlib.pyplot as plt
+        plt.figure(figsize=(10,4))
+        #plt.plot(prices, label='Price')
+        plt.plot(values, label='Portfolio Value')
+        plt.legend()
+        plt.title('Simulated Live Run')
+        plt.show()
+    except ImportError:
+        pass
+
 # ---- Training ----
 def train():
     env = MarketEnv()
     net = Net(len(env.reset()))
     opt = optim.Adam(net.parameters(), lr=1e-3)
 
-    for epoch in range(20):
+    for epoch in range(10):
         data = self_play(env, net)
         random.shuffle(data)
         for s, pi, z in data:
@@ -145,6 +173,6 @@ def train():
             loss.backward()
             opt.step()
         print(f"Epoch {epoch} done.")
-
+    live_run(env, net)
 if __name__ == "__main__":
     train()
