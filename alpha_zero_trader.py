@@ -6,7 +6,7 @@ import random
 import pandas as pd
 
 from utils.synthetic_data_service import SyntheticOHLCVGenerator
-from utils.feature_functions import apply_features, apply_candlestick_features
+from utils.feature_functions import apply_slope_features
 
 # ---- Market Env with Data ----
 class MarketEnv:
@@ -107,7 +107,7 @@ class Net(nn.Module):
         return self.policy(x), self.value(x)
 
 class LSTMNet(nn.Module):
-    def __init__(self, input_dim, hidden_dim=64, action_dim=2):
+    def __init__(self, input_dim, hidden_dim=256, action_dim=2):
         super().__init__()
         self.lstm = nn.LSTM(input_dim, hidden_dim, batch_first=True)
         self.policy = nn.Linear(hidden_dim, action_dim)
@@ -131,8 +131,28 @@ class Node:
     def value(self):
         return self.value_sum / self.visit_count if self.visit_count > 0 else 0
 
+def simulate(env, net, state, depth):
+    if depth == 0 or env.t >= env.horizon - 1:
+        state_tensor = torch.tensor(state, dtype=torch.float32)
+        while state_tensor.ndim < 3:
+            state_tensor = state_tensor.unsqueeze(0)
+        with torch.no_grad():
+            _, value = net(state_tensor)
+        return value.item()
+    else:
+        state_tensor = torch.tensor(state, dtype=torch.float32)
+        while state_tensor.ndim < 3:
+            state_tensor = state_tensor.unsqueeze(0)
+        with torch.no_grad():
+            policy_logits, _ = net(state_tensor)
+        priors = torch.softmax(policy_logits, dim=1).cpu().numpy()[0]
+        a = np.random.choice(len(priors), p=priors)
+        clone = clone_env(env)
+        next_state, r, done, _ = clone.step(a)
+        return simulate(clone, net, next_state, depth - 1)
+
 # ---- MCTS (robust shape handling) ----
-def mcts(env, net, state, n_sim=20):
+def mcts(env, net, state, n_sim=21, depth=5):
     root = Node(state, 1.0)
     state_tensor = torch.tensor(state, dtype=torch.float32)
     while state_tensor.ndim < 3:
@@ -146,18 +166,12 @@ def mcts(env, net, state, n_sim=20):
 
     # Run simulations
     for _ in range(n_sim):
-        best_a, best_child = max(root.children.items(),
-            key=lambda kv: kv[1].value() + kv[1].prior / (1 + kv[1].visit_count))
-        clone = clone_env(env)
-        s, r, done, _ = clone.step(best_a)
-        with torch.no_grad():
-            s_tensor = torch.tensor(s, dtype=torch.float32)
-            while s_tensor.ndim < 3:
-                s_tensor = s_tensor.unsqueeze(0)
-            pol, val = net(s_tensor)
-        v = val.item()
-        best_child.value_sum += v
-        best_child.visit_count += 1
+        for a, child in root.children.items():
+            clone = clone_env(env)
+            next_state, r, done, _ = clone.step(a)
+            v = simulate(clone, net, next_state, depth - 1)
+            child.value_sum += v
+            child.visit_count += 1
 
     visits = np.array([child.visit_count for child in root.children.values()], dtype=np.float32)
     return visits / (np.sum(visits) + 1e-8)
@@ -170,7 +184,7 @@ def clone_env(env):
     clone.cash = env.cash
     return clone
 
-def self_play(env, net, n_games=50, max_steps=30):
+def self_play(env, net, n_games=8, max_steps=21):
     data = []
     for _ in range(n_games):
         # Start at a random index, ensure enough data for window and max_steps
@@ -222,10 +236,10 @@ def live_run(env, net):
 
 # ---- Training Setup ----
 def train_with_features(is_lstm=True):
-    generator = SyntheticOHLCVGenerator(n_steps=1000, mu=0.005, sigma=0.1, dt=1, seed=72)
+    generator = SyntheticOHLCVGenerator(n_steps=1000, mu=0.005, sigma=0.05, dt=1, seed=72)
     df = generator.generate(start=100)
     df.columns = [col.lower() for col in df.columns]
-    df = apply_candlestick_features(df)
+    df = apply_slope_features(df, dropna=True)
 
     env = LSTMMarketEnv(df, window=10)
     obs = env.reset()
@@ -233,8 +247,8 @@ def train_with_features(is_lstm=True):
     net = LSTMNet(input_dim, action_dim=2)
     opt = optim.Adam(net.parameters(), lr=1e-3)
 
-    for epoch in range(50):
-        data = self_play(env, net, n_games=50, max_steps=30)
+    for epoch in range(5):
+        data = self_play(env, net)
         random.shuffle(data)
         for s, pi, z in data:
             s_tensor = torch.tensor(s, dtype=torch.float32)
