@@ -71,8 +71,42 @@ class PredictionNet(nn.Module):
     def forward(self, state):
         return self.policy(state), self.value(state)
 
-# --- MuZero Training Loop Skeleton ---
-def train_muzero(env, input_dim, action_dim, arch='lstm', epochs=10):
+# --- Simple Trading Environment Example ---
+class DummyTradingEnv:
+    def __init__(self, input_dim, horizon=50):
+        self.input_dim = input_dim
+        self.horizon = horizon
+        self.reset()
+    def reset(self):
+        self.t = 0
+        self.price = 100.0
+        self.position = 0
+        self.cash = 1000.0
+        self.data = np.random.randn(self.horizon, self.input_dim).astype(np.float32)
+        return self._obs()
+    def step(self, action):
+        # action: 0=buy, 1=sell, 2=hold
+        reward = 0.0
+        if action == 0:  # buy
+            self.position += 1
+            self.cash -= self.price
+        elif action == 1 and self.position > 0:  # sell
+            self.position -= 1
+            self.cash += self.price
+        self.t += 1
+        done = self.t >= self.horizon
+        obs = self._obs()
+        value = self.cash + self.position * self.price
+        reward = value / 1000.0  # normalized
+        return obs, reward, done, {}
+    def _obs(self):
+        if self.t < self.horizon:
+            return self.data[self.t]
+        else:
+            return self.data[-1]
+
+# --- MuZero Training Loop ---
+def train_muzero(env, input_dim, action_dim, arch='lstm', epochs=10, unroll_steps=5):
     repr_net = RepresentationNet(input_dim, arch=arch)
     dyn_net = DynamicsNet(state_dim=64, action_dim=action_dim)
     pred_net = PredictionNet(state_dim=64, action_dim=action_dim)
@@ -80,16 +114,56 @@ def train_muzero(env, input_dim, action_dim, arch='lstm', epochs=10):
 
     for epoch in range(epochs):
         # 1. Collect trajectories (self-play)
-        # 2. For each step, encode state, simulate actions, update networks
-        # 3. Compute losses (value, policy, consistency)
-        # 4. Optimize
+        obs = env.reset()
+        trajectory = []
+        done = False
+        while not done:
+            obs_tensor = torch.tensor(obs, dtype=torch.float32).unsqueeze(0).unsqueeze(0)  # (batch, seq, input_dim)
+            state = repr_net(obs_tensor)
+            policy_logits, value = pred_net(state)
+            policy = torch.softmax(policy_logits, dim=-1).detach().cpu().numpy()[0]
+            action = np.random.choice(action_dim, p=policy)
+            next_obs, reward, done, _ = env.step(action)
+            trajectory.append((obs, action, reward))
+            obs = next_obs
+
+        # 2. Unroll MuZero targets
+        for i in range(len(trajectory) - unroll_steps):
+            obs_seq = []
+            actions_seq = []
+            rewards_seq = []
+            for k in range(unroll_steps):
+                obs_seq.append(trajectory[i + k][0])
+                actions_seq.append(trajectory[i + k][1])
+                rewards_seq.append(trajectory[i + k][2])
+            # Initial state
+            obs_tensor = torch.tensor(obs_seq[0], dtype=torch.float32).unsqueeze(0).unsqueeze(0)
+            state = repr_net(obs_tensor)
+            total_loss = 0.0
+            for k in range(unroll_steps):
+                # Prediction
+                policy_logits, value_pred = pred_net(state)
+                target_policy = torch.zeros(action_dim)
+                target_policy[actions_seq[k]] = 1.0
+                target_value = torch.tensor([rewards_seq[k]], dtype=torch.float32)
+                # Losses
+                policy_loss = nn.functional.cross_entropy(policy_logits, target_policy.unsqueeze(0))
+                value_loss = nn.functional.mse_loss(value_pred, target_value.unsqueeze(0))
+                total_loss += policy_loss + value_loss
+                # Dynamics
+                action_onehot = torch.zeros(1, action_dim)
+                action_onehot[0, actions_seq[k]] = 1.0
+                state = dyn_net(state, action_onehot)
+            # 3. Optimize
+            opt.zero_grad()
+            total_loss.backward()
+            opt.step()
         print(f"Epoch {epoch} done.")
     print("Training complete.")
 
 # --- Example usage ---
 if __name__ == "__main__":
-    # Replace with your environment and data
     input_dim = 10  # Number of features
     action_dim = 3  # e.g., buy/sell/hold
-    # env = YourEnv(...)
-    train_muzero(None, input_dim, action_dim, arch='lstm', epochs=10)
+    env = DummyTradingEnv(input_dim)
+    train_muzero(env, input_dim, action_dim, arch='lstm', epochs=10, unroll_steps=5)

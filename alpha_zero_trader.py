@@ -152,7 +152,7 @@ def simulate(env, net, state, depth):
         return simulate(clone, net, next_state, depth - 1)
 
 # ---- MCTS (robust shape handling) ----
-def mcts(env, net, state, n_sim=21, depth=5):
+def mcts(env, net, state, n_sim=5, depth=21):
     root = Node(state, 1.0)
     state_tensor = torch.tensor(state, dtype=torch.float32)
     while state_tensor.ndim < 3:
@@ -239,7 +239,7 @@ def train_with_features(is_lstm=True):
     generator = SyntheticOHLCVGenerator(n_steps=1000, mu=0.005, sigma=0.05, dt=1, seed=72)
     df = generator.generate(start=100)
     df.columns = [col.lower() for col in df.columns]
-    df = apply_slope_features(df, dropna=True)
+    df = apply_slope_features(df, columns=['close', 'open', 'high', 'low'], dropna=True)
 
     env = LSTMMarketEnv(df, window=10)
     obs = env.reset()
