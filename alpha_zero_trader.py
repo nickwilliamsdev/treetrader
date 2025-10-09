@@ -152,7 +152,7 @@ def simulate(env, net, state, depth):
         return simulate(clone, net, next_state, depth - 1)
 
 # ---- MCTS (robust shape handling) ----
-def mcts(env, net, state, n_sim=5, depth=21):
+def mcts(env, net, state, n_sim=21, depth=34):
     root = Node(state, 1.0)
     state_tensor = torch.tensor(state, dtype=torch.float32)
     while state_tensor.ndim < 3:
@@ -184,7 +184,7 @@ def clone_env(env):
     clone.cash = env.cash
     return clone
 
-def self_play(env, net, n_games=8, max_steps=21):
+def self_play(env, net, n_games=21, max_steps=8):
     data = []
     for _ in range(n_games):
         # Start at a random index, ensure enough data for window and max_steps
@@ -236,7 +236,7 @@ def live_run(env, net):
 
 # ---- Training Setup ----
 def train_with_features(is_lstm=True):
-    generator = SyntheticOHLCVGenerator(n_steps=1000, mu=0.005, sigma=0.05, dt=1, seed=72)
+    generator = SyntheticOHLCVGenerator(n_steps=1000, mu=0.05, sigma=0.34, dt=1, seed=72)
     df = generator.generate(start=100)
     df.columns = [col.lower() for col in df.columns]
     df = apply_slope_features(df, columns=['close', 'open', 'high', 'low'], dropna=True)
@@ -247,7 +247,7 @@ def train_with_features(is_lstm=True):
     net = LSTMNet(input_dim, action_dim=2)
     opt = optim.Adam(net.parameters(), lr=1e-3)
 
-    for epoch in range(5):
+    for epoch in range(500):
         data = self_play(env, net)
         random.shuffle(data)
         for s, pi, z in data:
@@ -262,6 +262,13 @@ def train_with_features(is_lstm=True):
             loss.backward()
             opt.step()
         print(f"Epoch {epoch} done.")
+
+        # --- Checkpoint network and optimizer ---
+        torch.save({
+            'epoch': epoch,
+            'model_state_dict': net.state_dict(),
+            'optimizer_state_dict': opt.state_dict(),
+        }, f'alphazero_trader_epoch_{epoch}.pth')
     live_run(env, net)
 
 if __name__ == "__main__":
