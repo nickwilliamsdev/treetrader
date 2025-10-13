@@ -152,7 +152,7 @@ def simulate(env, net, state, depth):
         return simulate(clone, net, next_state, depth - 1)
 
 # ---- MCTS (robust shape handling) ----
-def mcts(env, net, state, n_sim=21, depth=34):
+def mcts(env, net, state, n_sim=21, depth=5):
     root = Node(state, 1.0)
     state_tensor = torch.tensor(state, dtype=torch.float32)
     while state_tensor.ndim < 3:
@@ -215,7 +215,7 @@ def live_run(env, net):
     prices = []
     actions = []
     while not done:
-        pi = mcts(env, net, s)
+        pi =  mcts(env, net, s, n_sim=21, depth=5)
         a = np.argmax(pi)
         actions.append(a)
         s, r, done, _ = env.step(a)
@@ -270,6 +270,32 @@ def train_with_features(is_lstm=True):
             'optimizer_state_dict': opt.state_dict(),
         }, f'alphazero_trader_epoch_{epoch}.pth')
     live_run(env, net)
+def load_and_test(checkpoint_path, df):
+    # Prepare environment and network
+    env = LSTMMarketEnv(df, window=10)
+    obs = env.reset()
+    input_dim = obs.shape[1]
+    net = LSTMNet(input_dim, action_dim=2)
+    opt = optim.Adam(net.parameters(), lr=1e-3)
 
+    # Load checkpoint
+    checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    net.load_state_dict(checkpoint['model_state_dict'])
+    opt.load_state_dict(checkpoint['optimizer_state_dict'])
+    print(f"Loaded checkpoint from epoch {checkpoint['epoch']}.")
+
+    # Run live test
+    live_run(env, net)
+
+# Example usage:
 if __name__ == "__main__":
+    # uncomment to train a new model
     train_with_features()
+    # If you want to test a checkpoint instead of training:
+    generator = SyntheticOHLCVGenerator(n_steps=1000, mu=0.05, sigma=0.34, dt=1, seed=72)
+    df = generator.generate(start=100)
+    df.columns = [col.lower() for col in df.columns]
+    df = apply_slope_features(df, columns=['close', 'open', 'high', 'low'], dropna=True)
+
+    load_and_test('alphazero_trader_epoch_216.pth', df)  # Change to your desired checkpoint
+    

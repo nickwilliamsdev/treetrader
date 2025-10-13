@@ -159,6 +159,14 @@ def train_muzero(env, input_dim, action_dim, arch='lstm', epochs=10, unroll_step
             total_loss.backward()
             opt.step()
         print(f"Epoch {epoch} done.")
+        # --- Save model checkpoints ---
+        torch.save({
+            'epoch': epoch,
+            'repr_net_state_dict': repr_net.state_dict(),
+            'dyn_net_state_dict': dyn_net.state_dict(),
+            'pred_net_state_dict': pred_net.state_dict(),
+            'optimizer_state_dict': opt.state_dict(),
+        }, f"muzero_checkpoint_epoch.pth")
     print("Training complete.")
 
 # --- Example usage ---
@@ -166,4 +174,4 @@ if __name__ == "__main__":
     input_dim = 10  # Number of features
     action_dim = 3  # e.g., buy/sell/hold
     env = DummyTradingEnv(input_dim)
-    train_muzero(env, input_dim, action_dim, arch='lstm', epochs=10, unroll_steps=5)
+    train_muzero(env, input_dim, action_dim, arch='lstm', epochs=1000, unroll_steps=21)
