@@ -7,7 +7,17 @@ import pandas as pd
 
 from utils.synthetic_data_service import SyntheticOHLCVGenerator
 from utils.feature_functions import apply_slope_features
+from api_wrappers.kraken_wrapper import KrakenWrapper
 
+def get_real_kraken_data(symbol="BTCUSD", interval="1day", data_dir="./hist_data/crypto/kraken_1day/"):
+    wrapper = KrakenWrapper(lb_interval=interval)
+    df_dict = wrapper.load_hist_files(data_dir=data_dir)
+    # Find the file for your symbol
+    for fname, df in df_dict.items():
+        if symbol in fname:
+            df.columns = [col.lower() for col in df.columns]
+            return df
+    raise ValueError(f"No data found for symbol {symbol}")
 # ---- Market Env with Data ----
 class MarketEnv:
     def __init__(self, data, cost=0.001):
@@ -221,6 +231,8 @@ def live_run(env, net):
         s, r, done, _ = env.step(a)
         values.append(env.cash + env.position * env.price)
         prices.append(env.price)
+        if (env.t % 10) == 0:
+            print(f"Step {env.t}, Price: {env.price:.2f}, Portfolio Value: {values[-1]:.2f}, Action: {a}")
     print("Live run finished.")
     print("Final portfolio value:", values[-1])
     print("Actions taken:", actions)
@@ -236,9 +248,7 @@ def live_run(env, net):
 
 # ---- Training Setup ----
 def train_with_features(is_lstm=True):
-    generator = SyntheticOHLCVGenerator(n_steps=1000, mu=0.05, sigma=0.34, dt=1, seed=72)
-    df = generator.generate(start=100)
-    df.columns = [col.lower() for col in df.columns]
+    df = get_real_kraken_data(symbol="ADAUSD", interval="1day")
     df = apply_slope_features(df, columns=['close', 'open', 'high', 'low'], dropna=True)
 
     env = LSTMMarketEnv(df, window=10)
@@ -247,7 +257,7 @@ def train_with_features(is_lstm=True):
     net = LSTMNet(input_dim, action_dim=2)
     opt = optim.Adam(net.parameters(), lr=1e-3)
 
-    for epoch in range(500):
+    for epoch in range(100):
         data = self_play(env, net)
         random.shuffle(data)
         for s, pi, z in data:
@@ -262,29 +272,24 @@ def train_with_features(is_lstm=True):
             loss.backward()
             opt.step()
         print(f"Epoch {epoch} done.")
-
-        # --- Checkpoint network and optimizer ---
         torch.save({
             'epoch': epoch,
             'model_state_dict': net.state_dict(),
             'optimizer_state_dict': opt.state_dict(),
         }, f'alphazero_trader_epoch_{epoch}.pth')
     live_run(env, net)
-def load_and_test(checkpoint_path, df):
-    # Prepare environment and network
+def load_and_test(checkpoint_path):
+    df = get_real_kraken_data(symbol="ADAUSD", interval="1day")
+    df = apply_slope_features(df, columns=['close', 'open', 'high', 'low'], dropna=True)
     env = LSTMMarketEnv(df, window=10)
     obs = env.reset()
     input_dim = obs.shape[1]
     net = LSTMNet(input_dim, action_dim=2)
     opt = optim.Adam(net.parameters(), lr=1e-3)
-
-    # Load checkpoint
-    checkpoint = torch.load(checkpoint_path, map_location='cpu')
-    net.load_state_dict(checkpoint['model_state_dict'])
-    opt.load_state_dict(checkpoint['optimizer_state_dict'])
-    print(f"Loaded checkpoint from epoch {checkpoint['epoch']}.")
-
-    # Run live test
+    #checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    #net.load_state_dict(checkpoint['model_state_dict'])
+    #opt.load_state_dict(checkpoint['optimizer_state_dict'])
+    #print(f"Loaded checkpoint from epoch {checkpoint['epoch']}.")
     live_run(env, net)
 
 # Example usage:
@@ -292,10 +297,10 @@ if __name__ == "__main__":
     # uncomment to train a new model
     train_with_features()
     # If you want to test a checkpoint instead of training:
-    generator = SyntheticOHLCVGenerator(n_steps=1000, mu=0.05, sigma=0.34, dt=1, seed=72)
+    generator = SyntheticOHLCVGenerator(n_steps=200, mu=0.05, sigma=0.34, dt=1, seed=72)
     df = generator.generate(start=100)
     df.columns = [col.lower() for col in df.columns]
     df = apply_slope_features(df, columns=['close', 'open', 'high', 'low'], dropna=True)
 
-    load_and_test('alphazero_trader_epoch_216.pth', df)  # Change to your desired checkpoint
+    load_and_test('alphazero_trader_epoch_499.pth')  # Change to your desired checkpoint
     
