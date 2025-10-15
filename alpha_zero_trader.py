@@ -22,7 +22,7 @@ def get_real_kraken_data(symbol="BTCUSD", interval="1day", data_dir="./hist_data
 class MarketEnv:
     def __init__(self, data, cost=0.001):
         self.data = data.reset_index(drop=True)
-        self.horizon = 8
+        self.horizon = len(data)  # Use full data length
         self.cost = cost
         self.reset()
 
@@ -30,17 +30,19 @@ class MarketEnv:
         self.t = 0
         self.position = 0
         self.cash = 1000.0
-        self.price = float(self.data.loc[0, 'close'])
+        self.price = None
         return self._obs()
 
     def step(self, action):
+        if self.price is None:
+            self.price = float(self.data.loc[self.t, 'close'])
         prev_value = self.cash + self.position * self.price
-        if action == 0:  # buy
-            self.position += 1
-            self.cash -= self.price * (1 + self.cost)
+        if action == 0 and self.cash > 0:  # buy
+            self.position += self.cash / self.price
+            self.cash -= self.position * self.price
         elif action == 1 and self.position > 0:  # sell
-            self.position -= 1
-            self.cash += self.price * (1 - self.cost)
+            self.position -= 0.0
+            self.cash += self.price * self.position
         # Advance to next timestep
         self.t += 1
         done = (self.t >= self.horizon)
@@ -75,19 +77,24 @@ class LSTMMarketEnv:
         return self._obs()
 
     def step(self, action):
+        if self.price is None:
+            self.price = float(self.data.loc[self.t, 'close'])
         prev_value = self.cash + self.position * self.price
-        if action == 0:  # buy
-            self.position += 1
-            self.cash -= self.price * (1 + self.cost)
+        if action == 0 and self.cash > 0:  # buy
+            self.position += self.cash / self.price
+            self.cash -= self.position * self.price
         elif action == 1 and self.position > 0:  # sell
-            self.position -= 1
-            self.cash += self.price * (1 - self.cost)
+            self.position -= 0.0
+            self.cash += self.price * self.position
+        # Advance to next timestep
         self.t += 1
         done = (self.t >= self.horizon)
         if not done:
             self.price = float(self.data.loc[self.t, 'close'])
         value = self.cash + self.position * self.price
         reward = (value - prev_value) / prev_value if prev_value != 0 else 0
+        if reward < 0.0:
+            reward *= 2.0  # Penalize losses more
         return self._obs(), reward, done, {}
 
     def _obs(self):
@@ -188,14 +195,14 @@ def mcts(env, net, state, n_sim=21, depth=5):
     return visits / (np.sum(visits) + 1e-8)
 
 def clone_env(env):
-    clone = LSTMMarketEnv(env.data.copy(), cost=env.cost, window=env.window)
+    clone = LSTMMarketEnv(env.data, cost=env.cost, window=env.window)
     clone.t = env.t
     clone.price = env.price
     clone.position = env.position
     clone.cash = env.cash
     return clone
 
-def self_play(env, net, n_games=21, max_steps=8):
+def self_play(env, net, n_games=5, max_steps=21):
     data = []
     for _ in range(n_games):
         # Start at a random index, ensure enough data for window and max_steps
@@ -211,6 +218,7 @@ def self_play(env, net, n_games=21, max_steps=8):
         while not done and steps < max_steps and env.t < env.horizon - 1:
             pi = mcts(env, net, s)
             a = np.random.choice(len(pi), p=pi)
+            #print(a)
             s, r, done, _ = env.step(a)
             trajectory.append((s, pi, r))
             steps += 1
@@ -302,5 +310,5 @@ if __name__ == "__main__":
     df.columns = [col.lower() for col in df.columns]
     df = apply_slope_features(df, columns=['close', 'open', 'high', 'low'], dropna=True)
 
-    load_and_test('alphazero_trader_epoch_499.pth')  # Change to your desired checkpoint
+    load_and_test('alphazero_trader_epoch_latest.pth')  # Change to your desired checkpoint
     

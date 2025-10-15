@@ -3,6 +3,7 @@ import numpy as np
 from scipy.signal import argrelextrema
 import matplotlib.pyplot as plt
 from utils.synthetic_data_service import SyntheticOHLCVGenerator
+import yfinance as yf
 def find_pivots(data):
     """
     Finds local swing highs and lows in the data.
