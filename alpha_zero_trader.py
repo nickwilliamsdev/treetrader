@@ -34,7 +34,7 @@ class MarketEnv:
         return self._obs()
 
     def step(self, action):
-        # action: 0=buy, 1=sell, 2=hold
+        prev_value = self.cash + self.position * self.price
         if action == 0:  # buy
             self.position += 1
             self.cash -= self.price * (1 + self.cost)
@@ -47,7 +47,7 @@ class MarketEnv:
         if not done:
             self.price = float(self.data.loc[self.t, 'close'])
         value = self.cash + self.position * self.price
-        reward = value  # You can customize reward logic here
+        reward = (value - prev_value) / prev_value if prev_value != 0 else 0
         return self._obs(), reward, done, {}
 
     def _obs(self):
@@ -75,6 +75,7 @@ class LSTMMarketEnv:
         return self._obs()
 
     def step(self, action):
+        prev_value = self.cash + self.position * self.price
         if action == 0:  # buy
             self.position += 1
             self.cash -= self.price * (1 + self.cost)
@@ -86,7 +87,7 @@ class LSTMMarketEnv:
         if not done:
             self.price = float(self.data.loc[self.t, 'close'])
         value = self.cash + self.position * self.price
-        reward = value
+        reward = (value - prev_value) / prev_value if prev_value != 0 else 0
         return self._obs(), reward, done, {}
 
     def _obs(self):
@@ -210,12 +211,11 @@ def self_play(env, net, n_games=21, max_steps=8):
         while not done and steps < max_steps and env.t < env.horizon - 1:
             pi = mcts(env, net, s)
             a = np.random.choice(len(pi), p=pi)
-            trajectory.append((s, pi))
             s, r, done, _ = env.step(a)
+            trajectory.append((s, pi, r))
             steps += 1
-        final_value = env.cash + env.position * env.price
-        for (state, pi) in trajectory:
-            data.append((state, pi, final_value))
+        for (state, pi, reward) in trajectory:
+            data.append((state, pi, reward))
     return data
 
 def live_run(env, net):
@@ -276,7 +276,7 @@ def train_with_features(is_lstm=True):
             'epoch': epoch,
             'model_state_dict': net.state_dict(),
             'optimizer_state_dict': opt.state_dict(),
-        }, f'alphazero_trader_epoch_{epoch}.pth')
+        }, f'alphazero_trader_epoch_latest.pth')
     live_run(env, net)
 def load_and_test(checkpoint_path):
     df = get_real_kraken_data(symbol="ADAUSD", interval="1day")
