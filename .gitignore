@@ -6,6 +6,7 @@ __pycache__/
 # hist/trade/model data ignores
 hist_data/stocks/*
 hist_data/crypto/*
+checkpoints_muzero/*
 
 # Ignore all PyTorch model files
 *.pth

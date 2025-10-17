@@ -94,7 +94,9 @@ class LSTMMarketEnv:
         value = self.cash + self.position * self.price
         reward = (value - prev_value) / prev_value if prev_value != 0 else 0
         if reward < 0.0:
-            reward *= 2.0  # Penalize losses more
+            reward = -1.0  # Penalize losses more
+        elif reward > 0.0:
+            reward = 1.0   # Cap rewards
         return self._obs(), reward, done, {}
 
     def _obs(self):
@@ -303,7 +305,7 @@ def load_and_test(checkpoint_path):
 # Example usage:
 if __name__ == "__main__":
     # uncomment to train a new model
-    train_with_features()
+    #train_with_features()
     # If you want to test a checkpoint instead of training:
     generator = SyntheticOHLCVGenerator(n_steps=200, mu=0.05, sigma=0.34, dt=1, seed=72)
     df = generator.generate(start=100)
