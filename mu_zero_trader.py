@@ -40,11 +40,41 @@ class ConvBlock(nn.Module):
         self.conv = nn.Conv1d(input_dim, out_channels, kernel_size, padding=kernel_size//2)
         self.pool = nn.AdaptiveAvgPool1d(1)
     def forward(self, x):
-        x = x.transpose(1,2)
+        x = x.transpose(1, 2)
         x = self.conv(x)
         x = self.pool(x)
         return x.squeeze(-1)
+# -----------------------
+# MCTS Node and UCB Score
+# -----------------------
+class MCTSNode:
+    __slots__ = ('parent', 'prior', 'visit_count', 'value_sum', 'children', 'reward', 'action')
+    def __init__(self, parent=None, prior=0.0, action=None):
+        self.parent = parent
+        self.prior = prior
+        self.visit_count = 0
+        self.value_sum = 0.0
+        self.children = {}  # action -> MCTSNode
+        self.reward = 0.0   # reward predicted on edge to this node
+        self.action = action
 
+    def expanded(self):
+        return len(self.children) > 0
+
+    def q_value(self):
+        return self.value_sum / self.visit_count if self.visit_count > 0 else 0.0
+
+
+def ucb_score(parent, child, c_puct=1.25, pb_c_base=19652, pb_c_init=1.25):
+    """
+    Computes the Upper Confidence Bound (UCB) score for a child node.
+    Balances exploration (prior) and exploitation (Q-value).
+    """
+    pb_c = math.log((parent.visit_count + pb_c_base + 1) / pb_c_base) + pb_c_init
+    pb_c *= math.sqrt(parent.visit_count) / (child.visit_count + 1)
+    prior_score = pb_c * child.prior
+    q = child.q_value()
+    return q + prior_score
 # -----------------------
 # MuZero nets: representation, dynamics (with reward), prediction
 # -----------------------
@@ -92,27 +122,32 @@ class PredictionNet(nn.Module):
 # Environment wrapper (lightweight LSTMMarketEnv)
 # -----------------------
 class LSTMMarketEnv:
-    def __init__(self, df, window=21, cost=0.0, initial_cash=1000.0, max_position=10):
-        # df: pandas DataFrame with features, must include 'close' column
+    def __init__(self, df, df_features, window=21, cost=0.0, initial_cash=1000.0, max_position=10):
+        """
+        df: pandas DataFrame with the full data (including 'close' for price calculations).
+        df_features: pandas DataFrame with only the features for the network.
+        """
         self.data = df.reset_index(drop=True)
+        self.features = df_features.reset_index(drop=True)
         self.horizon = len(self.data)
         self.window = window
         self.cost = cost
         self.initial_cash = initial_cash
         self.max_position = max_position
+        self.last_action = []
         self.reset()
 
     def reset(self, start_idx=0):
         self.t = int(start_idx)
         self.position = 0
         self.cash = float(self.initial_cash)
-        self.price = float(self.data.loc[self.t, 'close'])
+        self.price = float(self.data.loc[self.t, 'close'])  # Use 'close' from df
         self.max_portfolio_value = self.cash
         return self._obs()
 
     def _obs(self):
         start = max(0, self.t - self.window + 1)
-        rows = self.data.iloc[start:self.t+1].drop(columns=['date'], errors='ignore').values.astype(np.float32)
+        rows = self.features.iloc[start:self.t+1].values.astype(np.float32)  # Use df_features for observations
         if len(rows) < self.window:
             pad = np.zeros((self.window - len(rows), rows.shape[1]), dtype=np.float32)
             rows = np.vstack([pad, rows])
@@ -121,122 +156,39 @@ class LSTMMarketEnv:
     def step(self, action):
         # action: 0=buy, 1=sell
         prev_value = self.cash + self.position * self.price
+        prev_price = self.price
         # buy only if enough cash and within position limit
-        if action == 0 and self.cash >= self.price * (1 + self.cost) and self.position < self.max_position:
-            self.position += 1
-            self.cash -= self.price * (1 + self.cost)
+        if action == 0 and self.cash >= 0.0:
+            self.position += self.cash / (self.price * (1 + self.cost))
+            self.cash = 0.0
         # sell only if position > 0
         elif action == 1 and self.position > 0:
-            self.position -= 1
-            self.cash += self.price * (1 - self.cost)
+            self.cash += self.position* (self.price * (1 - self.cost))
+            self.position = 0
         # advance
         self.t += 1
         done = (self.t >= self.horizon)
         if not done:
-            self.price = float(self.data.loc[self.t, 'close'])
+            self.price = float(self.data.loc[self.t, 'close'])  # Use 'close' from df
         value = self.cash + self.position * self.price
         # immediate P&L reward (relative) and penalize drawdown
-        reward = (value - prev_value) / (prev_value + 1e-8)
-        self.max_portfolio_value = max(self.max_portfolio_value, value)
-        drawdown = (self.max_portfolio_value - value) / (self.max_portfolio_value + 1e-8)
-        reward = reward - 0.5 * drawdown  # tune weight
-        return self._obs(), float(reward), done, {}
-
-# -----------------------
-# MCTS Implementation (MuZero style)
-# -----------------------
-class MCTSNode:
-    __slots__ = ('parent','prior','visit_count','value_sum','children','reward','action')
-    def __init__(self, parent=None, prior=0.0, action=None):
-        self.parent = parent
-        self.prior = prior
-        self.visit_count = 0
-        self.value_sum = 0.0
-        self.children = {}  # action -> MCTSNode
-        self.reward = 0.0   # reward predicted on edge to this node
-        self.action = action
-
-    def expanded(self):
-        return len(self.children) > 0
-
-    def q_value(self):
-        return self.value_sum / self.visit_count if self.visit_count > 0 else 0.0
-
-def ucb_score(parent, child, c_puct=1.25, pb_c_base=19652, pb_c_init=1.25):
-    pb_c = math.log((parent.visit_count + pb_c_base + 1) / pb_c_base) + pb_c_init
-    pb_c *= math.sqrt(parent.visit_count) / (child.visit_count + 1)
-    prior_score = pb_c * child.prior
-    q = child.q_value()
-    return q + prior_score
-
-def run_mcts(root_state, repr_net, dyn_net, pred_net, n_sim=50, depth_limit=10, action_dim=2, gamma=0.99):
-    """
-    MuZero-style MCTS using learned dynamics/prediction.
-    root_state: (1, window, input_dim) tensor on device
-    returns (pi, root_value)
-    """
-    with torch.no_grad():
-        root_latent = repr_net(root_state)  # (1, hidden_dim)
-        logits, value = pred_net(root_latent)
-        priors = torch.softmax(logits, dim=-1).cpu().numpy()[0]
-
-    root = MCTSNode(parent=None, prior=1.0)
-    for a in range(action_dim):
-        root.children[a] = MCTSNode(parent=root, prior=float(priors[a]), action=a)
-
-    for _ in range(n_sim):
-        node = root
-        latent = root_latent.clone()
-        search_path = [node]
-        depth = 0
-
-        # selection
-        while node.expanded() and depth < depth_limit:
-            best_a, best_child = max(node.children.items(), key=lambda kv: ucb_score(node, kv[1]))
-            node = best_child
-            search_path.append(node)
-            a = node.action
-            action_onehot = torch.zeros(1, action_dim, device=device)
-            action_onehot[0, a] = 1.0
-            with torch.no_grad():
-                latent, reward = dyn_net(latent, action_onehot)
-            # store predicted reward on the node (edge to node)
-            node.reward = float(reward.cpu().item())
-            depth += 1
-
-        # expand leaf (if not expanded)
-        if not node.expanded():
-            with torch.no_grad():
-                logits_l, value_l = pred_net(latent)
-                priors_l = torch.softmax(logits_l, dim=-1).cpu().numpy()[0]
-            for a in range(action_dim):
-                node.children[a] = MCTSNode(parent=node, prior=float(priors_l[a]), action=a)
-            leaf_value = float(value_l.cpu().item())
+        change = (self.price - prev_price) / prev_price
+        if change < 0:
+            if self.position > 0:
+                reward = change
+            else:
+                reward = change**2
         else:
-            # reached depth limit: bootstrap value
-            with torch.no_grad():
-                _, leaf_value_t = pred_net(latent)
-                leaf_value = float(leaf_value_t.cpu().item())
-
-        # backup
-        v = leaf_value
-        for nd in reversed(search_path):
-            if nd is not root:
-                r = nd.reward
-                v = r + gamma * v
-            nd.visit_count += 1
-            nd.value_sum += v
-
-    visits = np.array([root.children[a].visit_count for a in sorted(root.children.keys())], dtype=np.float32)
-    pi = visits / (visits.sum() + 1e-8)
-    root_value = root.q_value()
-    return pi, root_value
+            if self.position > 0:
+                reward = change
+            else:
+                reward = 0 
+        return self._obs(), float(reward), done, {}
 
 # -----------------------
 # Replay buffer (stores sequences for MuZero unroll)
 # -----------------------
-# store: obs (window x feat), actions_seq (unroll_steps), pi (root), z_seq (unroll_steps), rewards_seq (unroll_steps)
-ReplayEntry = collections.namedtuple('ReplayEntry', ['obs','actions','pi','z_seq','rewards'])
+ReplayEntry = collections.namedtuple('ReplayEntry', ['obs', 'actions', 'pi', 'z_seq', 'rewards'])
 
 class ReplayBuffer:
     def __init__(self, capacity=20000):
@@ -248,9 +200,75 @@ class ReplayBuffer:
         return batch
     def __len__(self):
         return len(self.buf)
+    
+def run_mcts(root_state, repr_net, dyn_net, pred_net, n_sim=50, depth_limit=22, action_dim=2, gamma=0.99):
+    """
+    MuZero-style MCTS using learned dynamics/prediction.
+    root_state: (1, window, input_dim) tensor on device
+    returns (pi, root_value)
+    """
+    with torch.no_grad():
+        # Encode the root state using the representation network
+        root_latent = repr_net(root_state)  # (1, hidden_dim)
+        logits, value = pred_net(root_latent)
+        priors = torch.softmax(logits, dim=-1).cpu().numpy()[0]
+        # For Debugging print(f"Initial action priors: {priors}")
 
+    # Initialize the root node
+    root = MCTSNode(parent=None, prior=1.0)
+    for a in range(action_dim):
+        root.children[a] = MCTSNode(parent=root, prior=float(priors[a]), action=a)
+
+    # Perform simulations
+    for _ in range(n_sim):
+        node = root
+        latent = root_latent.clone()
+        search_path = [node]
+        depth = 0
+
+        # Selection phase
+        while node.expanded() and depth < depth_limit:
+            best_a, best_child = max(node.children.items(), key=lambda kv: ucb_score(node, kv[1]))
+            node = best_child
+            search_path.append(node)
+            a = node.action
+            action_onehot = torch.zeros(1, action_dim, device=device)
+            action_onehot[0, a] = 1.0
+            with torch.no_grad():
+                latent, reward = dyn_net(latent, action_onehot)
+            # Store predicted reward on the node (edge to node)
+            node.reward = float(reward.cpu().item())
+            depth += 1
+
+        # Expansion phase
+        if not node.expanded():
+            with torch.no_grad():
+                logits_l, value_l = pred_net(latent)
+                priors_l = torch.softmax(logits_l, dim=-1).cpu().numpy()[0]
+            for a in range(action_dim):
+                node.children[a] = MCTSNode(parent=node, prior=float(priors_l[a]), action=a)
+            leaf_value = float(value_l.cpu().item())
+        else:
+            # Reached depth limit: bootstrap value
+            with torch.no_grad():
+                _, leaf_value_t = pred_net(latent)
+                leaf_value = float(leaf_value_t.cpu().item())
+
+        # Backup phase
+        v = leaf_value
+        for nd in reversed(search_path):
+            if nd is not root:
+                r = nd.reward
+                v = r + gamma * v
+            nd.visit_count += 1
+            nd.value_sum += v
+    # Compute the policy (pi) from visit counts
+    visits = np.array([root.children[a].visit_count for a in sorted(root.children.keys())], dtype=np.float32)
+    pi = visits / (visits.sum() + 1e-8)
+    root_value = root.q_value()
+    return pi, root_value
 # -----------------------
-# Training loop implementing MuZero self-play with MCTS (full-ish)
+# Training loop implementing MuZero self-play with MCTS
 # -----------------------
 def train_muzero_full(kraken: KrakenWrapper,
                       data_dir=None,
@@ -268,11 +286,11 @@ def train_muzero_full(kraken: KrakenWrapper,
                       lr=1e-3,
                       gamma=0.99,
                       checkpoint_dir="./checkpoints_muzero",
-                      validate_every=1,
+                      validate_every=10,
                       max_replay_size=20000):
     os.makedirs(checkpoint_dir, exist_ok=True)
 
-    # load local dfs if provided
+    # Load local dataframes if provided
     df_dict = {}
     if data_dir:
         for f in os.listdir(data_dir):
@@ -286,7 +304,7 @@ def train_muzero_full(kraken: KrakenWrapper,
     def get_df_for_asset(asset):
         if data_dir:
             for k, df in df_dict.items():
-                if asset.replace("/", "").replace("USDT","") in k or asset.replace("/","") in k:
+                if asset.replace("/", "").replace("USDT", "") in k or asset.replace("/", "") in k:
                     return df.copy()
         try:
             cand = asset
@@ -299,7 +317,7 @@ def train_muzero_full(kraken: KrakenWrapper,
                 return next(iter(df_dict.values())).copy()
             raise RuntimeError("No data available for asset " + str(asset))
 
-    # sample df to infer input dim
+    # Sample dataframe to infer input dimensions
     sample_df = None
     if len(df_dict) > 0:
         sample_df = next(iter(df_dict.values()))
@@ -313,10 +331,14 @@ def train_muzero_full(kraken: KrakenWrapper,
     if sample_df is None:
         raise RuntimeError("No historical data available locally and kraken fetch failed.")
 
-    sample_df = apply_slope_features(sample_df, columns=['close','open','high','low'], dropna=True)
-    sample_df = sample_df.drop(columns=[c for c in sample_df.columns if c.lower() in ('time','date')], errors='ignore')
+    # Apply feature engineering
+    sample_df = apply_slope_features(sample_df, columns=['close', 'open', 'high', 'low'], dropna=True)
+    sample_df['close_pct_change'] = sample_df['close'].pct_change().fillna(0)  # Add percent change for close
+    # Drop non-feature columns
+    sample_df = sample_df.drop(columns=[c for c in sample_df.columns if c.lower() in ('time', 'date', 'close', 'open', 'high', 'low', 'volume')], errors='ignore')
+    # Calculate input_dim based on remaining columns
     input_dim = sample_df.shape[1]
-
+    print(input_dim)
     repr_net = RepresentationNet(input_dim, arch=arch, hidden_dim=hidden_dim).to(device)
     dyn_net = DynamicsNet(state_dim=hidden_dim, action_dim=action_dim, hidden_dim=hidden_dim).to(device)
     pred_net = PredictionNet(state_dim=hidden_dim, action_dim=action_dim).to(device)
@@ -336,16 +358,16 @@ def train_muzero_full(kraken: KrakenWrapper,
         except Exception:
             df = sample_df.copy()
         try:
-            non_feature_cols = df.columns
-            df = apply_slope_features(df, columns=['close','open','high','low'], dropna=False)
-            df = apply_candlestick_features(df, dropna=True)
+            df_features = apply_slope_features(df, columns=['close', 'open', 'high', 'low'], dropna=True)
+            df_features['close_pct_change'] = df_features['close'].pct_change().fillna(0)  # Add percent change for close
         except Exception:
             pass
-        df = df.reset_index(drop=True)
-        df = df.drop(columns=[c for c in df.columns if c.lower() in non_feature_cols], errors='ignore')
-        env = LSTMMarketEnv(df, window=window)
+        df_features = df_features.reset_index(drop=True)
+        df_prices = df_features[['close']].copy()
+        df_features = df_features.drop(columns=[c for c in df_features.columns if c.lower() in ('time', 'date', 'close', 'open', 'high', 'low', 'volume')], errors='ignore')
+        env = LSTMMarketEnv(df_prices, df_features=df_features, window=window)
 
-        # self-play
+        # Self-play
         for g in range(games_per_epoch):
             max_start = max(0, env.horizon - window - max_steps - 1)
             start_idx = random.randint(0, max_start) if max_start > 0 else 0
@@ -373,7 +395,7 @@ def train_muzero_full(kraken: KrakenWrapper,
             if len(traj_obs) == 0:
                 continue
 
-            # compute discounted returns (z) per time step (for unroll supervision)
+            # Compute discounted returns (z) per time step (for unroll supervision)
             returns = []
             R = 0.0
             for r in reversed(traj_rewards):
@@ -381,10 +403,10 @@ def train_muzero_full(kraken: KrakenWrapper,
                 returns.append(R)
             returns = list(reversed(returns))
 
-            # push training examples with unroll sequences
+            # Push training examples with unroll sequences
             T = len(traj_obs)
             for i in range(T):
-                # actions sequence and reward sequence for unroll_steps
+                # Actions sequence and reward sequence for unroll_steps
                 actions_seq = []
                 rewards_seq = []
                 z_seq = []
@@ -395,15 +417,15 @@ def train_muzero_full(kraken: KrakenWrapper,
                         rewards_seq.append(traj_rewards[idx])
                         z_seq.append(returns[idx])
                     else:
-                        # pad with last element
+                        # Pad with last element
                         actions_seq.append(traj_actions[-1])
                         rewards_seq.append(0.0)
                         z_seq.append(0.0)
                 replay.push(traj_obs[i], actions_seq, traj_pis[i], z_seq, rewards_seq)
 
-        # training from replay
+        # Training from replay
         if len(replay) >= 1:
-            iters = max(1, len(replay)//batch_size)
+            iters = max(1, len(replay) // batch_size)
             for _ in range(iters):
                 batch = replay.sample(batch_size)
                 B = len(batch)
@@ -414,14 +436,14 @@ def train_muzero_full(kraken: KrakenWrapper,
                 rewards_batch = torch.tensor([b.rewards for b in batch], dtype=torch.float32).to(device)  # (B, unroll)
                 z_seq_batch = torch.tensor([b.z_seq for b in batch], dtype=torch.float32).to(device)  # (B, unroll)
 
-                # representation
+                # Representation
                 state = repr_net(obs_batch)  # (B, hidden_dim)
                 logits, value = pred_net(state)
                 policy_log_prob = nn.functional.log_softmax(logits, dim=-1)
                 policy_loss = - (pi_batch * policy_log_prob).sum(dim=1).mean()
                 value_loss = nn.functional.mse_loss(value, z_batch)
 
-                # unroll dynamics and compute unrolled losses (value + reward)
+                # Unroll dynamics and compute unrolled losses (value + reward)
                 reward_loss = 0.0
                 unroll_value_loss = 0.0
                 state_u = state
@@ -431,10 +453,10 @@ def train_muzero_full(kraken: KrakenWrapper,
                     action_onehot[range(B), action_idx] = 1.0
                     state_u, reward_pred = dyn_net(state_u, action_onehot)  # (B, state), (B,1)
                     logits_u, value_u = pred_net(state_u)
-                    # reward target
+                    # Reward target
                     reward_target = rewards_batch[:, k].unsqueeze(1)
                     reward_loss = reward_loss + nn.functional.mse_loss(reward_pred, reward_target)
-                    # value target for this unrolled step
+                    # Value target for this unrolled step
                     z_target = z_seq_batch[:, k].unsqueeze(1)
                     unroll_value_loss = unroll_value_loss + nn.functional.mse_loss(value_u, z_target)
 
@@ -443,7 +465,7 @@ def train_muzero_full(kraken: KrakenWrapper,
                 loss.backward()
                 opt.step()
 
-        # checkpoint latest
+        # Save checkpoint
         latest_path = os.path.join(checkpoint_dir, "muzero_latest.pth")
         torch.save({
             'epoch': epoch,
@@ -456,26 +478,26 @@ def train_muzero_full(kraken: KrakenWrapper,
         epoch_time = time.time() - epoch_start
         print(f"Epoch {epoch} done. replay_size={len(replay)} epoch_time={epoch_time:.1f}s")
 
-    print("Training complete, running validation")
+    print("Training complete.")
     # Periodic validation
-    if (epoch + 1) % validate_every == 0:
-        print(f"Running validation at epoch {epoch}...")
-        validate_checkpoint(
-            kraken=kraken,
-            checkpoint_path=latest_path,
-            get_df_fn=get_df_for_asset,
-            repr_net=repr_net,
-            dyn_net=dyn_net,
-            pred_net=pred_net,
-            assets=None,  # Validate on random USDT assets
-            n_assets=5,
-            n_games=3,
-            window=window,
-            max_steps=max_steps,
-            n_sim=min(30, n_sim),  # Use fewer simulations for validation
-            depth_limit=min(6, depth_limit),
-            gamma=gamma
-        )
+    print(f"Running validation ...")
+    latest_path = os.path.join(checkpoint_dir, "muzero_latest_1659.pth")
+    validate_checkpoint(
+        kraken=kraken,
+        checkpoint_path=latest_path,
+        get_df_fn=get_df_for_asset,
+        repr_net=repr_net,
+        dyn_net=dyn_net,
+        pred_net=pred_net,
+        assets=None,  # Validate on random USDT assets
+        n_assets=5,
+        n_games=3,
+        window=window,
+        max_steps=max_steps,
+        n_sim=min(30, n_sim),  # Use fewer simulations for validation
+        depth_limit=min(6, depth_limit),
+        gamma=gamma
+    )
 
 # -----------------------
 # Simple helpers: load & validate checkpoint (keeps code minimal)
@@ -493,63 +515,100 @@ def validate_checkpoint(kraken, checkpoint_path, get_df_fn,
                         repr_net, dyn_net, pred_net,
                         assets=None, n_assets=5, n_games=3,
                         window=21, max_steps=40, n_sim=30, depth_limit=6, gamma=0.99):
+    """
+    Validates the trained models by running them on a set of assets.
+    Ensures only normalized features are passed to the networks.
+    """
+    # Load the checkpoint
     _ = load_checkpoint(checkpoint_path, repr_net, dyn_net, pred_net, opt=None, map_location=device)
-    repr_net.to(device).eval(); dyn_net.to(device).eval(); pred_net.to(device).eval()
+    repr_net.to(device).eval()
+    dyn_net.to(device).eval()
+    pred_net.to(device).eval()
+
+    # Get assets for validation
     if assets is None:
         assets = kraken.get_usdt_assets()
     assets = list(assets)[:n_assets]
-    non_feature_cols = []
+
     results = {}
     for asset in assets:
         try:
+            # Fetch and preprocess the data
             df = get_df_fn(asset)
-            non_feature_cols = df.columns.difference(['close','open','high','low','volume'])
-        except Exception:
+
+            # Retain the 'close' column for price calculations
+
+            # Apply feature engineering
+            df_features = apply_slope_features(df, columns=['close', 'open', 'high', 'low'], dropna=True)
+            df_features['close_pct_change'] = df_features['close'].pct_change().fillna(0)  # Add percent change for close
+            df_features = df_features.reset_index(drop=True)
+            df_prices = df_features[['close']].copy()  # Keep only the 'close' column for price calculations
+
+            # Drop non-feature columns from df_features
+            df_features = df_features.drop(columns=[c for c in df_features.columns if c.lower() in ('time', 'date', 'open', 'high', 'low',  'close', 'volume')], errors='ignore')
+        except Exception as e:
+            print(f"Error processing asset {asset}: {e}")
             continue
-        try:
-            df = apply_slope_features(df, columns=['close','open','high','low'], dropna=True)
-        except Exception:
-            pass
-        df = df.reset_index(drop=True)
-        df = df.drop(columns=[c for c in df.columns if c.lower() in non_feature_cols], errors='ignore')
-        env = LSTMMarketEnv(df, window=window)
+
+        # Reset the environment
+        env = LSTMMarketEnv(df_prices, df_features=df_features, window=window)
+
+        # Metrics for this asset
         asset_returns = []
         asset_dds = []
         action_counts = []
+
         for g in range(n_games):
+            # Start near the end of the data (validation period)
             start_idx = max(0, env.horizon - window - max_steps - 1)
             obs = env.reset(start_idx)
             vals = [env.cash + env.position * env.price]
-            steps = 0
             actions = []
             done = False
+            steps = 0
+
             while not done and steps < max_steps and env.t < env.horizon - 1:
+                # Prepare the observation tensor
                 obs_tensor = torch.tensor(obs, dtype=torch.float32).unsqueeze(0).to(device)
                 pi, _ = run_mcts(obs_tensor, repr_net, dyn_net, pred_net, n_sim=n_sim, depth_limit=depth_limit, action_dim=2, gamma=gamma)
-                a = int(np.argmax(pi))
-                obs, r, done, _ = env.step(a)
+                action = int(np.argmax(pi))
+                obs, reward, done, _ = env.step(action)
                 vals.append(env.cash + env.position * env.price)
-                actions.append(a)
+                actions.append(action)
                 steps += 1
+
+            # Calculate metrics
             total_return = (vals[-1] / (vals[0] + 1e-8)) - 1.0
-            peak = -1e9; max_dd = 0.0
+            peak = -1e9
+            max_dd = 0.0
             for v in vals:
-                if v > peak: peak = v
+                if v > peak:
+                    peak = v
                 dd = (peak - v) / (peak + 1e-8)
-                if dd > max_dd: max_dd = dd
+                if dd > max_dd:
+                    max_dd = dd
             asset_returns.append(total_return)
             asset_dds.append(max_dd)
             action_counts.append(collections.Counter(actions))
+
+        # Aggregate metrics for this asset
         if asset_returns:
             results[asset] = {
                 'mean_return': float(statistics.mean(asset_returns)),
                 'mean_max_dd': float(statistics.mean(asset_dds)),
                 'action_distribution': dict(sum((collections.Counter(ac) for ac in action_counts), collections.Counter()))
             }
-    repr_net.train(); dyn_net.train(); pred_net.train()
+
+    # Switch models back to training mode
+    repr_net.train()
+    dyn_net.train()
+    pred_net.train()
+
+    # Print validation summary
     print("Validation summary:")
-    for a, m in results.items():
-        print(f" {a}: mean_return={m['mean_return']:.4f} mean_max_dd={m['mean_max_dd']:.4f} actions={m['action_distribution']}")
+    for asset, metrics in results.items():
+        print(f" {asset}: mean_return={metrics['mean_return']:.4f}, mean_max_dd={metrics['mean_max_dd']:.4f}, actions={metrics['action_distribution']}")
+
     return results
 
 # Example usage (uncomment to run as script)
@@ -557,5 +616,5 @@ if __name__ == "__main__":
     kr = KrakenWrapper()
     train_muzero_full(kr, data_dir="./hist_data/crypto/kraken_1day/",
                       arch='lstm', hidden_dim=64, window=21,
-                      epochs=10, games_per_epoch=8, max_steps=20,
-                      n_sim=20, depth_limit=6, unroll_steps=3, batch_size=64)
+                      epochs=100, games_per_epoch=21, max_steps=34,
+                      n_sim=21, depth_limit=15, unroll_steps=34, batch_size=64)
