@@ -129,6 +129,7 @@ class LSTMMarketEnv:
         """
         self.data = df.reset_index(drop=True)
         self.features = df_features.reset_index(drop=True)
+        assert len(self.data) == len(self.features), "Data and features must have the same length"
         self.horizon = len(self.data)
         self.window = window
         self.cost = cost
@@ -177,7 +178,7 @@ class LSTMMarketEnv:
             if self.position > 0:
                 reward = change
             else:
-                reward = change**2
+                reward = change * -1.01  # small reward for being out of market on down move
         else:
             if self.position > 0:
                 reward = change
@@ -481,7 +482,7 @@ def train_muzero_full(kraken: KrakenWrapper,
     print("Training complete.")
     # Periodic validation
     print(f"Running validation ...")
-    latest_path = os.path.join(checkpoint_dir, "muzero_latest_1659.pth")
+    latest_path = os.path.join(checkpoint_dir, "muzero_latest.pth")
     validate_checkpoint(
         kraken=kraken,
         checkpoint_path=latest_path,
@@ -615,6 +616,6 @@ def validate_checkpoint(kraken, checkpoint_path, get_df_fn,
 if __name__ == "__main__":
     kr = KrakenWrapper()
     train_muzero_full(kr, data_dir="./hist_data/crypto/kraken_1day/",
-                      arch='lstm', hidden_dim=64, window=21,
-                      epochs=100, games_per_epoch=21, max_steps=34,
-                      n_sim=21, depth_limit=15, unroll_steps=34, batch_size=64)
+                      arch='lstm', hidden_dim=64, window=8,
+                      epochs=9044, games_per_epoch=7, max_steps=7,
+                      n_sim=7, depth_limit=7, unroll_steps=7, batch_size=64)
