@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 from .networks.list_net import ListNetRanker
 
 def listnet_loss(scores, true_returns, temperature=0.01):
