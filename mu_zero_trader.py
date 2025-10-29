@@ -616,6 +616,6 @@ def validate_checkpoint(kraken, checkpoint_path, get_df_fn,
 if __name__ == "__main__":
     kr = KrakenWrapper()
     train_muzero_full(kr, data_dir="./hist_data/crypto/kraken_1day/",
-                      arch='lstm', hidden_dim=64, window=8,
-                      epochs=9044, games_per_epoch=7, max_steps=7,
+                      arch='lstm', hidden_dim=64, window=89,
+                      epochs=216, games_per_epoch=7, max_steps=7,
                       n_sim=7, depth_limit=7, unroll_steps=7, batch_size=64)
