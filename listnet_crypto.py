@@ -1,6 +1,8 @@
 import torch
 import torch.nn.functional as F
 from .networks.list_net import ListNetRanker
+import pandas as pd
+
 
 def listnet_loss(scores, true_returns, temperature=0.01):
     # scores, true_returns: (batch, list_size)
@@ -22,7 +24,7 @@ def train_listnet(model, dataloader, n_epochs=20, lr=1e-3):
             losses.append(loss.item())
         print(f"Epoch {epoch}: mean loss = {np.mean(losses):.4f}")
 
-def rank_assets(model, features_df, date):
+def rank_assets(model, features_df, date, feature_cols):
     subset = features_df[features_df.date == date]
     X = torch.tensor(subset[feature_cols].values, dtype=torch.float32).unsqueeze(0)
     scores = model(X).detach().numpy()[0]
