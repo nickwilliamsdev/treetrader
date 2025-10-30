@@ -617,5 +617,5 @@ if __name__ == "__main__":
     kr = KrakenWrapper()
     train_muzero_full(kr, data_dir="./hist_data/crypto/kraken_1day/",
                       arch='lstm', hidden_dim=1024, window=34,
-                      epochs=10, games_per_epoch=7, max_steps=21,
-                      n_sim=34, depth_limit=21, unroll_steps=21, batch_size=64)
+                      epochs=100, games_per_epoch=7, max_steps=7,
+                      n_sim=7, depth_limit=21, unroll_steps=7, batch_size=64)
