@@ -14,7 +14,7 @@ class KrakenWrapper(object):
     }
 
     bar_data_names = ["date","open","high","low","close","vwap","volume","drop"]
-
+    majors = ['BTC', 'ETH', 'ADA', 'SOL', 'DOT', 'XRP', 'DOGE', 'LTC', 'BNB', 'MATIC']
     lookback_intervals = {
         "1min": 1,
         "5min": 5,
@@ -213,8 +213,11 @@ class KrakenWrapper(object):
                 #raise
         return new_data
     
-    def load_hist_files(self, data_dir="./hist_data/crypto/kraken_1day/"):
+    def load_hist_files(
+            self,
+            ticker_list=[]):
         df_dict = {}
+        data_dir=f"./hist_data/crypto/kraken_{self.lb_interval}/"
         for filename in os.listdir(data_dir):
             if filename.endswith(".txt"):
                 filepath = os.path.join(data_dir, filename)
