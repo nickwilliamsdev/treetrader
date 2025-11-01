@@ -1,12 +1,12 @@
 import torch
 import torch.nn.functional as F
-from .networks.list_net import ListNetRanker
+from networks.list_net import ListNetRanker
 import pandas as pd
 import numpy as np
 from torch.utils.data import DataLoader, Dataset
 from api_wrappers.kraken_wrapper import KrakenWrapper
 
-four_hour_wrapper = KrakenWrapper(interval='4hr')
+four_hour_wrapper = KrakenWrapper(lb_interval='4hr')
 
 def listnet_loss(scores, true_returns, temperature=0.01):
     """
@@ -20,11 +20,19 @@ def listnet_loss(scores, true_returns, temperature=0.01):
     Returns:
         torch.Tensor: The computed loss.
     """
+    if true_returns.dim() == 1:  # Ensure true_returns has the correct shape
+        true_returns = true_returns.unsqueeze(1)
+
     P_true = F.softmax(true_returns / temperature, dim=1)
     P_pred = F.softmax(scores, dim=1)
     loss = -(P_true * torch.log(P_pred + 1e-8)).sum(dim=1).mean()
     return loss
 
+def validate_data(X, y):
+    if torch.isnan(X).any() or torch.isinf(X).any():
+        raise ValueError("Input data contains NaN or Inf values.")
+    if torch.isnan(y).any() or torch.isinf(y).any():
+        raise ValueError("Target data contains NaN or Inf values.")
 
 def train_listnet(model, dataloader, n_epochs=20, lr=1e-3):
     """
@@ -42,13 +50,15 @@ def train_listnet(model, dataloader, n_epochs=20, lr=1e-3):
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     for epoch in range(n_epochs):
         losses = []
-        for X, y in dataloader:  # X: (batch, list_size, n_features)
+        for batch_idx, (X, y) in enumerate(dataloader):  # X: (batch, list_size, n_features), y: (batch, list_size)
+            validate_data(X, y)
             opt.zero_grad()
-            scores = model(X)
+            scores = model(X)  # scores: (batch, list_size)
             loss = listnet_loss(scores, y)
             loss.backward()
             opt.step()
             losses.append(loss.item())
+            print(f"Epoch {epoch}, Batch {batch_idx}: Loss = {loss.item():.4f}")  # Debugging batch loss
         print(f"Epoch {epoch}: mean loss = {np.mean(losses):.4f}")
 
 
@@ -110,7 +120,6 @@ def tournament_rank(model, features_df, date, group_size=10, top_k=2, feature_co
     final_rank = rank_assets(model, current, date, feature_cols)
     return final_rank
 
-
 def validate_listnet(model, dataloader, feature_cols):
     """
     Validates the ListNet model on a validation dataset.
@@ -126,10 +135,11 @@ def validate_listnet(model, dataloader, feature_cols):
     model.eval()
     losses = []
     with torch.no_grad():
-        for X, y in dataloader:
+        for batch_idx, (X, y) in enumerate(dataloader):  # X: (batch, n_features), y: (batch,)
             scores = model(X)
             loss = listnet_loss(scores, y)
             losses.append(loss.item())
+            print(f"Validation Batch {batch_idx}: Loss = {loss.item():.4f}")  # Debugging batch loss
     mean_loss = np.mean(losses)
     print(f"Validation mean loss: {mean_loss:.4f}")
     model.train()
@@ -170,28 +180,34 @@ class CryptoDataset(Dataset):
     """
     Custom PyTorch Dataset for cryptocurrency data.
     """
-    def __init__(self, data, feature_cols, target_col):
+    def __init__(self, data, feature_cols, target_col, list_size=10):
         """
         Args:
             data (pd.DataFrame): The input DataFrame.
             feature_cols (list): List of feature column names.
             target_col (str): The target column name.
+            list_size (int): Number of items in each list (group).
         """
-        self.data = data
         self.feature_cols = feature_cols
         self.target_col = target_col
+        self.list_size = list_size
+
+        # Group data into lists
+        self.groups = [
+            data.iloc[i:i + list_size]
+            for i in range(0, len(data) - list_size + 1, list_size)
+        ]
 
     def __len__(self):
-        return len(self.data)
+        return len(self.groups)
 
     def __getitem__(self, idx):
-        row = self.data.iloc[idx]
-        X = torch.tensor(row[self.feature_cols].values, dtype=torch.float32)
-        y = torch.tensor(row[self.target_col], dtype=torch.float32)
+        group = self.groups[idx]
+        X = torch.tensor(group[self.feature_cols].values, dtype=torch.float32)  # (list_size, n_features)
+        y = torch.tensor(group[self.target_col].values, dtype=torch.float32)  # (list_size,)
         return X, y
 
-
-def prepare_data(dfs, feature_cols, target_col, train_split=0.8):
+def prepare_data(dfs, feature_cols, target_col, train_split=0.8, list_size=10):
     """
     Prepares training and validation datasets from the given DataFrames.
 
@@ -200,6 +216,7 @@ def prepare_data(dfs, feature_cols, target_col, train_split=0.8):
         feature_cols (list): List of feature column names.
         target_col (str): The target column name.
         train_split (float): Proportion of data to use for training.
+        list_size (int): Number of items in each list (group).
 
     Returns:
         tuple: Training and validation DataLoaders.
@@ -209,8 +226,8 @@ def prepare_data(dfs, feature_cols, target_col, train_split=0.8):
     train_data = all_data[:train_size]
     val_data = all_data[train_size:]
 
-    train_dataset = CryptoDataset(train_data, feature_cols, target_col)
-    val_dataset = CryptoDataset(val_data, feature_cols, target_col)
+    train_dataset = CryptoDataset(train_data, feature_cols, target_col, list_size=list_size)
+    val_dataset = CryptoDataset(val_data, feature_cols, target_col, list_size=list_size)
 
     train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
     val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
@@ -238,7 +255,7 @@ def main():
 
     # Step 3: Initialize the ListNet model
     input_dim = len(feature_cols)
-    model = ListNetRanker(input_dim=input_dim)
+    model = ListNetRanker(n_features=input_dim)
 
     # Step 4: Train the model
     print("Starting training...")
