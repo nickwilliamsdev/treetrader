@@ -92,11 +92,15 @@ class KrakenWrapper(object):
     
     def get_usdt_assets(self):
         tradeable_assets = requests.get(self.endpoints["trade_assets"])
+        print(tradeable_assets)
         asset_list = []
         #df = pd.DataFrame(tradeable_assets.json())
-        for i in tradeable_assets.json()["result"]:
-            if (i[-4:] == "USDT"):
-                asset_list.append(i)
+        try:
+            for i in tradeable_assets.json()["result"]:
+                if (i[-4:] == "USDT"):
+                    asset_list.append(i)
+        except Exception as e:
+            print(f"Error fetching USDT assets: {e}")
         return asset_list
 
     def get_file_symbol(self, sym_full):
