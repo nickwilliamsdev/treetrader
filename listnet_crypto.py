@@ -4,6 +4,9 @@ from .networks.list_net import ListNetRanker
 import pandas as pd
 import numpy as np
 from torch.utils.data import DataLoader, Dataset
+from api_wrappers.kraken_wrapper import KrakenWrapper
+
+four_hour_wrapper = KrakenWrapper(interval='4hr')
 
 def listnet_loss(scores, true_returns, temperature=0.01):
     """
@@ -133,29 +136,6 @@ def validate_listnet(model, dataloader, feature_cols):
     return mean_loss
 
 
-def get_dfs():
-    """
-    Fetches historical data for at least 10 cryptocurrencies.
-
-    Returns:
-        dict: A dictionary where keys are cryptocurrency symbols and values are DataFrames of historical data.
-    """
-    # Stub implementation: Replace this with actual data fetching logic
-    cryptos = ['BTC', 'ETH', 'ADA', 'SOL', 'DOT', 'XRP', 'DOGE', 'LTC', 'BNB', 'MATIC']
-    dfs = {}
-    for crypto in cryptos:
-        # Replace this with actual data fetching logic (e.g., API calls)
-        dfs[crypto] = pd.DataFrame({
-            'date': pd.date_range(start='2023-01-01', periods=100),
-            'close': np.random.rand(100) * 100,
-            'volume': np.random.rand(100) * 1000,
-            'open': np.random.rand(100) * 100,
-            'high': np.random.rand(100) * 100,
-            'low': np.random.rand(100) * 100,
-        })
-    return dfs
-
-
 def apply_features(df):
     """
     Applies feature engineering to the given DataFrame.
@@ -168,7 +148,7 @@ def apply_features(df):
     """
     # Stub implementation: Replace this with actual feature engineering logic
     df['close_pct_change'] = df['close'].pct_change().fillna(0)
-    df['volume_pct_change'] = df['volume'].pct_change().fillna(0)
+    df['volume_pct_change'] = df['vol'].pct_change().fillna(0)
     df['high_low_diff'] = df['high'] - df['low']
     df['open_close_diff'] = df['open'] - df['close']
     return df
@@ -237,6 +217,8 @@ def prepare_data(dfs, feature_cols, target_col, train_split=0.8):
 
     return train_loader, val_loader
 
+def get_dfs():
+    return four_hour_wrapper.load_hist_files()
 
 def main():
     """
