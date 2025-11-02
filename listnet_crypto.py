@@ -5,6 +5,7 @@ import pandas as pd
 import numpy as np
 from torch.utils.data import DataLoader, Dataset
 from api_wrappers.kraken_wrapper import KrakenWrapper
+import os
 
 four_hour_wrapper = KrakenWrapper(lb_interval='4hr')
 

@@ -12,7 +12,6 @@ class ListNetRanker(nn.Module):
         )
     def forward(self, X):
         # X: (batch, list_size, n_features)
-        print(X.shape)
         scores = self.net(X)  # (batch, list_size, 1)
         return scores.squeeze(-1)  # (batch, list_size)
 
