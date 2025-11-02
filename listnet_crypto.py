@@ -58,7 +58,6 @@ def train_listnet(model, dataloader, n_epochs=20, lr=1e-3):
             loss.backward()
             opt.step()
             losses.append(loss.item())
-            print(f"Epoch {epoch}, Batch {batch_idx}: Loss = {loss.item():.4f}")  # Debugging batch loss
         print(f"Epoch {epoch}: mean loss = {np.mean(losses):.4f}")
 
 
@@ -161,6 +160,7 @@ def apply_features(df):
     df['volume_pct_change'] = df['vol'].pct_change().fillna(0)
     df['high_low_diff'] = df['high'] - df['low']
     df['open_close_diff'] = df['open'] - df['close']
+    df = df.replace([np.inf, -np.inf], np.nan).dropna().reset_index(drop=True)
     return df
 
 def apply_target(df):
