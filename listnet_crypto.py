@@ -34,7 +34,7 @@ def validate_data(X, y):
     if torch.isnan(y).any() or torch.isinf(y).any():
         raise ValueError("Target data contains NaN or Inf values.")
 
-def train_listnet(model, dataloader, n_epochs=20, lr=1e-3):
+def train_listnet(model, dataloader, n_epochs=2000, lr=1e-3):
     """
     Trains the ListNet model using the provided dataloader.
 
@@ -58,7 +58,11 @@ def train_listnet(model, dataloader, n_epochs=20, lr=1e-3):
             loss.backward()
             opt.step()
             losses.append(loss.item())
-        print(f"Epoch {epoch}: mean loss = {np.mean(losses):.4f}")
+        if (epoch + 1) % 10 == 0:
+            checkpoint_path = os.path.join(save_dir, f"listnet_epoch_{epoch + 1}.pth")
+            torch.save(model.state_dict(), checkpoint_path)
+            print(f"Model checkpoint saved to {checkpoint_path}")
+            print(f"Epoch {epoch}: mean loss = {np.mean(losses):.4f}")
 
 
 def rank_assets(model, features_df, date, feature_cols):
