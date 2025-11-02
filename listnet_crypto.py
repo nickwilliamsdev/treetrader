@@ -8,6 +8,12 @@ from api_wrappers.kraken_wrapper import KrakenWrapper
 import os
 
 four_hour_wrapper = KrakenWrapper(lb_interval='4hr')
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+print(f"Using device: {device}")
+
+# Define feature columns and target column
+feature_cols = ['close_pct_change', 'volume_pct_change', 'high_low_diff', 'open_close_diff']
+target_col = 'close_pct_change'  # Example target column
 
 def listnet_loss(scores, true_returns, temperature=0.01):
     """
@@ -35,26 +41,30 @@ def validate_data(X, y):
     if torch.isnan(y).any() or torch.isinf(y).any():
         raise ValueError("Target data contains NaN or Inf values.")
 
-def train_listnet(model, dataloader, n_epochs=2000, lr=1e-3):
+def train_listnet(model, dataloader, n_epochs=20, lr=1e-3, save_dir="model_archive/listnet"):
     """
-    Trains the ListNet model using the provided dataloader.
+    Trains the ListNet model using the provided dataloader and saves the model every 10 epochs.
 
     Args:
         model (torch.nn.Module): The ListNet model to train.
         dataloader (torch.utils.data.DataLoader): Dataloader for training data.
         n_epochs (int): Number of training epochs.
         lr (float): Learning rate.
+        save_dir (str): Directory to save the model checkpoints.
 
     Returns:
         None
     """
+    os.makedirs(save_dir, exist_ok=True)
     opt = torch.optim.Adam(model.parameters(), lr=lr)
+
     for epoch in range(n_epochs):
         losses = []
-        for batch_idx, (X, y) in enumerate(dataloader):  # X: (batch, list_size, n_features), y: (batch, list_size)
+        for batch_idx, (X, y) in enumerate(dataloader):
+            X, y = X.to(device), y.to(device)  # Move data to the device
             validate_data(X, y)
             opt.zero_grad()
-            scores = model(X)  # scores: (batch, list_size)
+            scores = model(X)
             loss = listnet_loss(scores, y)
             loss.backward()
             opt.step()
@@ -63,7 +73,7 @@ def train_listnet(model, dataloader, n_epochs=2000, lr=1e-3):
             checkpoint_path = os.path.join(save_dir, f"listnet_epoch_{epoch + 1}.pth")
             torch.save(model.state_dict(), checkpoint_path)
             print(f"Model checkpoint saved to {checkpoint_path}")
-            print(f"Epoch {epoch}: mean loss = {np.mean(losses):.4f}")
+        print(f"Epoch {epoch}: mean loss = {np.mean(losses):.4f}")
 
 
 def rank_assets(model, features_df, date, feature_cols):
@@ -124,6 +134,72 @@ def tournament_rank(model, features_df, date, group_size=10, top_k=2, feature_co
     final_rank = rank_assets(model, current, date, feature_cols)
     return final_rank
 
+def backtest_tournament(model, dfs, feature_cols, target_col, start_date, end_date, group_size=10, top_k=2, initial_cash=10000):
+    """
+    Backtests the model using tournament ranking.
+
+    Args:
+        model (torch.nn.Module): The trained ListNet model.
+        dfs (dict): Dictionary of DataFrames for each cryptocurrency.
+        feature_cols (list): List of feature column names.
+        target_col (str): The target column name.
+        start_date (str): Start date for the backtest (e.g., "2023-01-01").
+        end_date (str): End date for the backtest (e.g., "2023-12-31").
+        group_size (int): Number of assets per group in the tournament.
+        top_k (int): Number of top assets to select from each group.
+        initial_cash (float): Initial cash for the portfolio.
+
+    Returns:
+        pd.DataFrame: DataFrame containing portfolio value over time.
+    """
+    model.eval()
+
+    # Combine all data into a single DataFrame
+    all_data = pd.concat(dfs.values(), keys=dfs.keys(), names=["asset", "index"]).reset_index()
+    all_data = all_data[(all_data['date'] >= start_date) & (all_data['date'] <= end_date)]
+
+    # Initialize portfolio
+    portfolio_value = initial_cash
+    portfolio = {}  # {asset: number of shares}
+    portfolio_history = []
+
+    # Iterate over each date in the backtest period
+    for date in sorted(all_data['date'].unique()):
+        # Filter data for the current date
+        daily_data = all_data[all_data['date'] == date]
+
+        # Rank assets using tournament ranking
+        ranked_assets = tournament_rank(model, daily_data, date, group_size, top_k, feature_cols)
+
+        # Sell all current holdings
+        for asset, shares in portfolio.items():
+            if asset in daily_data['asset'].values:
+                price = daily_data[daily_data['asset'] == asset]['close'].values[0]
+                portfolio_value += shares * price
+        portfolio = {}
+
+        # Buy top-ranked assets
+        cash_per_asset = portfolio_value / top_k
+        for asset in ranked_assets['asset'].head(top_k):
+            price = daily_data[daily_data['asset'] == asset]['close'].values[0]
+            shares = cash_per_asset // price
+            portfolio[asset] = shares
+            portfolio_value -= shares * price
+
+        # Record portfolio value
+        portfolio_history.append({'date': date, 'portfolio_value': portfolio_value})
+
+    # Convert portfolio history to DataFrame
+    portfolio_history = pd.DataFrame(portfolio_history)
+
+    # Add the value of current holdings to the portfolio value
+    for asset, shares in portfolio.items():
+        if asset in daily_data['asset'].values:
+            price = daily_data[daily_data['asset'] == asset]['close'].values[0]
+            portfolio_history.loc[portfolio_history.index[-1], 'portfolio_value'] += shares * price
+
+    return portfolio_history
+
 def validate_listnet(model, dataloader, feature_cols):
     """
     Validates the ListNet model on a validation dataset.
@@ -139,11 +215,12 @@ def validate_listnet(model, dataloader, feature_cols):
     model.eval()
     losses = []
     with torch.no_grad():
-        for batch_idx, (X, y) in enumerate(dataloader):  # X: (batch, n_features), y: (batch,)
+        for batch_idx, (X, y) in enumerate(dataloader):
+            X, y = X.to(device), y.to(device)  # Move data to the device
             scores = model(X)
             loss = listnet_loss(scores, y)
             losses.append(loss.item())
-            print(f"Validation Batch {batch_idx}: Loss = {loss.item():.4f}")  # Debugging batch loss
+            print(f"Validation Batch {batch_idx}: Loss = {loss.item():.4f}")
     mean_loss = np.mean(losses)
     print(f"Validation mean loss: {mean_loss:.4f}")
     model.train()
@@ -251,20 +328,16 @@ def main():
     for crypto, df in dfs.items():
         dfs[crypto] = apply_features(df)
 
-    # Define feature columns and target column
-    feature_cols = ['close_pct_change', 'volume_pct_change', 'high_low_diff', 'open_close_diff']
-    target_col = 'close_pct_change'  # Example target column
-
     # Step 2: Prepare training and validation data
     train_loader, val_loader = prepare_data(dfs, feature_cols, target_col)
 
     # Step 3: Initialize the ListNet model
     input_dim = len(feature_cols)
-    model = ListNetRanker(n_features=input_dim)
+    model = ListNetRanker(n_features=input_dim).to(device)
 
     # Step 4: Train the model
     print("Starting training...")
-    train_listnet(model, train_loader, n_epochs=20, lr=1e-3)
+    train_listnet(model, train_loader, n_epochs=2000, lr=1e-3)
 
     # Step 5: Validate the model
     print("Validating the model...")
@@ -274,6 +347,35 @@ def main():
     torch.save(model.state_dict(), "listnet_model.pth")
     print("Model saved to 'listnet_model.pth'.")
 
+def test():
+    model_path = "listnet_model.pth"
+    input_dim = len(feature_cols)
+    model = ListNetRanker(n_features=input_dim).to(device)
+    model.load_state_dict(torch.load(model_path, map_location=device))
+    model.eval()
+    print(f"Loaded model from {model_path}")
+
+    # Step 2: Preprocess the data\
+    dfs = get_dfs()
+    for crypto, df in dfs.items():
+        df['date'] = pd.to_datetime(df['date'])
+        dfs[crypto] = apply_features(df)
+
+    start_date = pd.to_datetime("2023-01-01")
+    end_date = pd.to_datetime("2023-12-31")
+    
+    print("Starting backtest...")
+    portfolio_history = backtest_tournament(
+        model, dfs, feature_cols, target_col,
+        start_date=start_date, end_date=end_date,
+        group_size=10, top_k=2, initial_cash=10000
+    )
+    print(portfolio_history)
+
+    # Plot portfolio value over time
+    portfolio_history.set_index('date')['portfolio_value'].plot(title="Portfolio Value Over Time")
+
 
 if __name__ == "__main__":
-    main()
+    test()
+    #main()

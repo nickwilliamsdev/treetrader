@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 class ListNetRanker(nn.Module):
-    def __init__(self, n_features, hidden=128):
+    def __init__(self, n_features, hidden=9044):
         super().__init__()
         self.net = nn.Sequential(
             nn.Linear(n_features, hidden), nn.ReLU(),
