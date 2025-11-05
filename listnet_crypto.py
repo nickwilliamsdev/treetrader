@@ -6,6 +6,8 @@ import numpy as np
 from torch.utils.data import DataLoader, Dataset
 from api_wrappers.kraken_wrapper import KrakenWrapper
 import os
+import matplotlib.pyplot as plt
+from scipy.stats import mode
 
 four_hour_wrapper = KrakenWrapper(lb_interval='4hr')
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -41,6 +43,26 @@ def validate_data(X, y):
     if torch.isnan(y).any() or torch.isinf(y).any():
         raise ValueError("Target data contains NaN or Inf values.")
 
+def join_dataframes_on_date(dfs):
+    """
+    Joins all DataFrames in the dictionary on the 'date' column.
+
+    Args:
+        dfs (dict): Dictionary of DataFrames for each cryptocurrency.
+
+    Returns:
+        pd.DataFrame: A single DataFrame with all assets joined on the 'date' column.
+    """
+    joined_df = None
+    for asset, df in dfs.items():
+        df = df.copy()
+        df['asset'] = asset  # Add an 'asset' column to identify the asset
+        if joined_df is None:
+            joined_df = df
+        else:
+            joined_df = pd.concat([joined_df, df], ignore_index=True)
+    return joined_df
+
 def train_listnet(model, dataloader, n_epochs=20, lr=1e-3, save_dir="model_archive/listnet"):
     """
     Trains the ListNet model using the provided dataloader and saves the model every 10 epochs.
@@ -57,7 +79,7 @@ def train_listnet(model, dataloader, n_epochs=20, lr=1e-3, save_dir="model_archi
     """
     os.makedirs(save_dir, exist_ok=True)
     opt = torch.optim.Adam(model.parameters(), lr=lr)
-
+    checkpoint_counter = 0
     for epoch in range(n_epochs):
         losses = []
         for batch_idx, (X, y) in enumerate(dataloader):
@@ -70,9 +92,12 @@ def train_listnet(model, dataloader, n_epochs=20, lr=1e-3, save_dir="model_archi
             opt.step()
             losses.append(loss.item())
         if (epoch + 1) % 10 == 0:
-            checkpoint_path = os.path.join(save_dir, f"listnet_epoch_{epoch + 1}.pth")
+            if checkpoint_counter == 10:
+                checkpoint_counter = 0
+            checkpoint_path = os.path.join(save_dir, f"listnet_epoch_{checkpoint_counter}.pth")
             torch.save(model.state_dict(), checkpoint_path)
             print(f"Model checkpoint saved to {checkpoint_path}")
+            checkpoint_counter += 1
         print(f"Epoch {epoch}: mean loss = {np.mean(losses):.4f}")
 
 
@@ -96,13 +121,13 @@ def rank_assets(model, features_df, date, feature_cols):
     if subset.empty:
         raise ValueError(f"No data found for the specified date: {date}")
 
-    X = torch.tensor(subset[feature_cols].values, dtype=torch.float32).unsqueeze(0)
-    scores = model(X).detach().numpy()[0]
+    X = torch.tensor(subset[feature_cols].values, dtype=torch.float32).unsqueeze(0).to(device)  # (1, list_size, n_features)
+    scores = model(X).detach().cpu().numpy().squeeze(0)  # (list_size,)
     subset['score'] = scores
     return subset.sort_values('score', ascending=False)
 
 
-def tournament_rank(model, features_df, date, group_size=10, top_k=2, feature_cols=None):
+def tournament_rank(model, features_df, date, group_size=10, top_k=1, feature_cols=None):
     """
     Performs tournament-style ranking of assets.
 
@@ -134,17 +159,16 @@ def tournament_rank(model, features_df, date, group_size=10, top_k=2, feature_co
     final_rank = rank_assets(model, current, date, feature_cols)
     return final_rank
 
-def backtest_tournament(model, dfs, feature_cols, target_col, start_date, end_date, group_size=10, top_k=2, initial_cash=10000):
+def backtest_tournament_fixed_steps(model, joined_df, feature_cols, target_col, steps=30, group_size=10, top_k=10, initial_cash=10000):
     """
-    Backtests the model using tournament ranking.
+    Backtests the model using tournament ranking over a fixed number of steps.
 
     Args:
         model (torch.nn.Module): The trained ListNet model.
-        dfs (dict): Dictionary of DataFrames for each cryptocurrency.
+        joined_df (pd.DataFrame): The joined DataFrame containing all assets.
         feature_cols (list): List of feature column names.
         target_col (str): The target column name.
-        start_date (str): Start date for the backtest (e.g., "2023-01-01").
-        end_date (str): End date for the backtest (e.g., "2023-12-31").
+        steps (int): Number of steps to backtest.
         group_size (int): Number of assets per group in the tournament.
         top_k (int): Number of top assets to select from each group.
         initial_cash (float): Initial cash for the portfolio.
@@ -154,23 +178,24 @@ def backtest_tournament(model, dfs, feature_cols, target_col, start_date, end_da
     """
     model.eval()
 
-    # Combine all data into a single DataFrame
-    all_data = pd.concat(dfs.values(), keys=dfs.keys(), names=["asset", "index"]).reset_index()
-    all_data = all_data[(all_data['date'] >= start_date) & (all_data['date'] <= end_date)]
+    # Ensure the DataFrame is sorted by date
+    joined_df = joined_df.sort_values('date')
+
+    # Get the first `steps` unique dates
+    unique_dates = joined_df['date'].unique()[steps:steps*2]
 
     # Initialize portfolio
     portfolio_value = initial_cash
     portfolio = {}  # {asset: number of shares}
     portfolio_history = []
 
-    # Iterate over each date in the backtest period
-    for date in sorted(all_data['date'].unique()):
+    # Iterate over the selected dates
+    for date in unique_dates:
         # Filter data for the current date
-        daily_data = all_data[all_data['date'] == date]
+        daily_data = joined_df[joined_df['date'] == date]
 
         # Rank assets using tournament ranking
         ranked_assets = tournament_rank(model, daily_data, date, group_size, top_k, feature_cols)
-
         # Sell all current holdings
         for asset, shares in portfolio.items():
             if asset in daily_data['asset'].values:
@@ -182,7 +207,7 @@ def backtest_tournament(model, dfs, feature_cols, target_col, start_date, end_da
         cash_per_asset = portfolio_value / top_k
         for asset in ranked_assets['asset'].head(top_k):
             price = daily_data[daily_data['asset'] == asset]['close'].values[0]
-            shares = cash_per_asset // price
+            shares = cash_per_asset / price
             portfolio[asset] = shares
             portfolio_value -= shares * price
 
@@ -317,7 +342,27 @@ def prepare_data(dfs, feature_cols, target_col, train_split=0.8, list_size=10):
     return train_loader, val_loader
 
 def get_dfs():
-    return four_hour_wrapper.load_hist_files()
+    """
+    Fetches and filters DataFrames to ensure all have the same length.
+
+    Returns:
+        dict: Filtered dictionary of DataFrames with lengths equal to the mode length.
+    """
+    dfs = four_hour_wrapper.load_hist_files()
+
+    # Step 1: Calculate the length of each DataFrame
+    df_lengths = {crypto: len(df) for crypto, df in dfs.items()}
+    print("DataFrame lengths:", df_lengths)
+
+    # Step 2: Find the mode of the lengths
+    mode_length = pd.Series(list(df_lengths.values())).mode()[0]
+    print("Mode length:", mode_length)
+
+    # Step 3: Filter DataFrames by length
+    filtered_dfs = {crypto: df for crypto, df in dfs.items() if len(df) == mode_length}
+    print(f"Filtered {len(dfs) - len(filtered_dfs)} DataFrames that do not match the mode length.")
+
+    return filtered_dfs
 
 def main():
     """
@@ -333,11 +378,11 @@ def main():
 
     # Step 3: Initialize the ListNet model
     input_dim = len(feature_cols)
-    model = ListNetRanker(n_features=input_dim).to(device)
+    model = ListNetRanker(n_features=input_dim, hidden=256).to(device)
 
     # Step 4: Train the model
     print("Starting training...")
-    train_listnet(model, train_loader, n_epochs=2000, lr=1e-3)
+    train_listnet(model, train_loader, n_epochs=9044, lr=1e-3)
 
     # Step 5: Validate the model
     print("Validating the model...")
@@ -348,34 +393,37 @@ def main():
     print("Model saved to 'listnet_model.pth'.")
 
 def test():
-    model_path = "listnet_model.pth"
+    model_path = "./model_archive/listnet/listnet_epoch_2000.pth"
     input_dim = len(feature_cols)
-    model = ListNetRanker(n_features=input_dim).to(device)
+    model = ListNetRanker(n_features=input_dim, hidden=9044).to(device)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
     print(f"Loaded model from {model_path}")
 
-    # Step 2: Preprocess the data\
+    # Step 2: Preprocess the data
     dfs = get_dfs()
+    print(len(dfs))
     for crypto, df in dfs.items():
-        df['date'] = pd.to_datetime(df['date'])
+        df['date'] = pd.to_datetime(df['date'], unit='s')  # Convert timestamps to datetime
         dfs[crypto] = apply_features(df)
 
-    start_date = pd.to_datetime("2023-01-01")
-    end_date = pd.to_datetime("2023-12-31")
-    
+    # Join all DataFrames on the 'date' column
+    joined_df = join_dataframes_on_date(dfs)
+
     print("Starting backtest...")
-    portfolio_history = backtest_tournament(
-        model, dfs, feature_cols, target_col,
-        start_date=start_date, end_date=end_date,
-        group_size=10, top_k=2, initial_cash=10000
+    portfolio_history = backtest_tournament_fixed_steps(
+        model, joined_df, feature_cols, target_col,
+        steps=30, group_size=10, top_k=5, initial_cash=10000
     )
     print(portfolio_history)
 
     # Plot portfolio value over time
     portfolio_history.set_index('date')['portfolio_value'].plot(title="Portfolio Value Over Time")
+    plt.xlabel("Date")
+    plt.ylabel("Portfolio Value")
+    plt.show()
 
 
 if __name__ == "__main__":
-    test()
     #main()
+    test()
