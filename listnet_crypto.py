@@ -15,7 +15,6 @@ device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
 # Define feature columns and target column
-feature_cols = ['close_pct_change', 'volume_pct_change', 'high_low_diff', 'open_close_diff']
 target_col = 'close_pct_change'  # Example target column
 
 def listnet_loss(scores, true_returns, temperature=0.01):
@@ -289,10 +288,6 @@ def apply_features(df):
     df['volume_pct_change'] = df['vol'].pct_change().fillna(0)
     df['high_low_diff'] = df['high'] - df['low']
     df['open_close_diff'] = df['open'] - df['close']
-    df['pct_change'] = df['close'].pct_change()
-    df['pct_change_5'] = df['close'].pct_change(5)
-    df['pct_change_10'] = df['close'].pct_change(10)
-    df['pct_change_21'] = df['close'].pct_change(21)
     df = bar_change_features(df, lookbacks=[2, 3, 5, 8, 13, 21, 34, 55])
     df = df.replace([np.inf, -np.inf], np.nan).dropna().reset_index(drop=True)
     return df
@@ -388,17 +383,21 @@ def get_dfs():
     # Step 3: Filter DataFrames by length
     filtered_dfs = {crypto: df for crypto, df in dfs.items() if len(df) == mode_length}
     print(f"Filtered {len(dfs) - len(filtered_dfs)} DataFrames that do not match the mode length.")
-
-    return filtered_dfs
+    non_feature_cols = dfs.items()[0][1].columns
+    return filtered_dfs, non_feature_cols.tolist() 
 
 def main():
     """
     Main function to train and validate the ListNet model.
     """
     # Step 1: Fetch and preprocess data
-    dfs = get_dfs()
+    feature_cols = []
+    dfs, non_feature_cols = get_dfs()
     for crypto, df in dfs.items():
+        df['date'] = pd.to_datetime(df['date'], unit='s')  # Convert timestamps to datetime
         dfs[crypto] = apply_features(df)
+        if not feature_cols:
+            feature_cols = [col for col in dfs[crypto].columns if col not in non_feature_cols + ['date']]
 
     # Step 2: Prepare training and validation data
     train_loader, val_loader = prepare_data(dfs, feature_cols, target_col)
@@ -420,20 +419,20 @@ def main():
     print("Model saved to 'listnet_model.pth'.")
 
 def test():
+    # Step 2: Preprocess the data
+    feature_cols = []
+    dfs, non_feature_cols = get_dfs()
+    for crypto, df in dfs.items():
+        df['date'] = pd.to_datetime(df['date'], unit='s')  # Convert timestamps to datetime
+        dfs[crypto] = apply_features(df)
+        if not feature_cols:
+            feature_cols = [col for col in dfs[crypto].columns if col not in non_feature_cols + ['date']]
     model_path = "listnet_model.pth"
     input_dim = len(feature_cols)
     model = ListNetRanker(n_features=input_dim, hidden=9044).to(device)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
     print(f"Loaded model from {model_path}")
-
-    # Step 2: Preprocess the data
-    dfs = get_dfs()
-    print(len(dfs))
-    for crypto, df in dfs.items():
-        df['date'] = pd.to_datetime(df['date'], unit='s')  # Convert timestamps to datetime
-        dfs[crypto] = apply_features(df)
-
     # Join all DataFrames on the 'date' column
     joined_df = join_dataframes_on_date(dfs)
 
