@@ -150,13 +150,13 @@ def apply_features_newest(df):
 
 def bar_change_features(feature_df, lookbacks):
     #feature_df = pd.DataFrame()
-    feature_df['open_close'] = (feature_df['Close'] - feature_df['Open']) / feature_df['Open']
-    feature_df['high_low'] = (feature_df['High'] - feature_df['Low']) / feature_df['Low']
-    feature_df['vol_change'] = feature_df["Volume"].pct_change()
-    feature_df["close_change"] = feature_df["Close"].pct_change()
-    feature_df["high_change"] = feature_df["High"].pct_change()
-    feature_df["low_change"] = feature_df["Low"].pct_change()
-    feature_df["open_change"] = feature_df["Open"].pct_change()
+    feature_df['open_close'] = (feature_df['close'] - feature_df['open']) / feature_df['open']
+    feature_df['high_low'] = (feature_df['high'] - feature_df['low']) / feature_df['low']
+    feature_df['vol_change'] = feature_df["vol"].pct_change()
+    feature_df["close_change"] = feature_df["close"].pct_change()
+    feature_df["high_change"] = feature_df["high"].pct_change()
+    feature_df["low_change"] = feature_df["low"].pct_change()
+    feature_df["open_change"] = feature_df["open"].pct_change()
     for x in lookbacks:
         feature_df[f"oc_{x}"] = feature_df["open_close"].rolling(x).mean()
         feature_df[f"hl_{x}"] = feature_df["high_low"].rolling(x).mean()
@@ -165,7 +165,7 @@ def bar_change_features(feature_df, lookbacks):
         feature_df[f"lc_{x}"] = feature_df["low_change"].rolling(x).mean()
         feature_df[f"hc_{x}"] = feature_df["high_change"].rolling(x).mean()
         feature_df[f"opc_{x}"] = feature_df["open_change"].rolling(x).mean()
-    feature_columns = [c for c in feature_df.columns if c not in self.bardata_points and c not in ['level_0', 'index', 'Unnamed: 0']]
+    #feature_columns = [c for c in feature_df.columns if c not in bardata_points and c not in ['level_0', 'index', 'Unnamed: 0']]
     #feature_df[feature_columns] = (feature_df[feature_columns] - feature_df[feature_columns].rolling(89).mean()) / feature_df[feature_columns].rolling(89).std()
     feature_df.dropna(inplace=True)
     feature_df.reset_index(inplace=True)

@@ -8,6 +8,7 @@ from api_wrappers.kraken_wrapper import KrakenWrapper
 import os
 import matplotlib.pyplot as plt
 from scipy.stats import mode
+from utils.feature_functions import bar_change_features
 
 four_hour_wrapper = KrakenWrapper(lb_interval='4hr')
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -127,37 +128,53 @@ def rank_assets(model, features_df, date, feature_cols):
     return subset.sort_values('score', ascending=False)
 
 
-def tournament_rank(model, features_df, date, group_size=10, top_k=1, feature_cols=None):
+def tournament_rank(model, features_df, date, group_size=10, feature_cols=None):
     """
-    Performs tournament-style ranking of assets.
+    Simplified tournament-style ranking of assets.
 
     Args:
         model (torch.nn.Module): The trained ListNet model.
         features_df (pd.DataFrame): DataFrame containing asset features.
         date (str): The date for which to rank assets.
         group_size (int): Number of assets per group in the tournament.
-        top_k (int): Number of top assets to select from each group.
         feature_cols (list): List of feature column names.
 
     Returns:
-        pd.DataFrame: DataFrame of assets ranked by score.
+        pd.DataFrame: DataFrame containing the final ranking of assets.
     """
     if 'date' not in features_df.columns:
         raise ValueError("The features_df must contain a 'date' column.")
 
+    # Filter data for the given date
     current = features_df[features_df.date == date]
     if current.empty:
         raise ValueError(f"No data found for the specified date: {date}")
 
-    while len(current) > group_size:
+    # Debugging: Print initial assets
+    print(f"Tournament ranking for date: {date}")
+    print("Initial assets:")
+    print(current[['asset', 'score']])
+
+    # Tournament ranking logic
+    while len(current) > 1:
+        # Split into groups of `group_size`
         groups = [current.iloc[i:i + group_size] for i in range(0, len(current), group_size)]
         winners = []
-        for g in groups:
-            ranked = rank_assets(model, g, date, feature_cols)
-            winners.append(ranked.head(top_k))
-        current = pd.concat(winners)
-    final_rank = rank_assets(model, current, date, feature_cols)
-    return final_rank
+
+        # Rank each group and take the top-ranked asset
+        for group in groups:
+            ranked = rank_assets(model, group, date, feature_cols)
+            winners.append(ranked.iloc[0])  # Take the top-ranked asset
+
+        # Create a new DataFrame with the winners
+        current = pd.DataFrame(winners)
+
+        # Debugging: Print winners after each round
+        print("Winners after this round:")
+        print(current[['asset', 'score']])
+
+    # Return the final winner
+    return current
 
 def backtest_tournament_fixed_steps(model, joined_df, feature_cols, target_col, steps=30, group_size=10, top_k=10, initial_cash=10000):
     """
@@ -178,11 +195,11 @@ def backtest_tournament_fixed_steps(model, joined_df, feature_cols, target_col, 
     """
     model.eval()
 
-    # Ensure the DataFrame is sorted by date
-    joined_df = joined_df.sort_values('date')
+    # Ensure the DataFrame is sorted and aligned
+    joined_df = joined_df.sort_values('date').dropna(subset=feature_cols + ['close'])
 
     # Get the first `steps` unique dates
-    unique_dates = joined_df['date'].unique()[steps:steps*2]
+    unique_dates = joined_df['date'].unique()[:steps]
 
     # Initialize portfolio
     portfolio_value = initial_cash
@@ -195,21 +212,25 @@ def backtest_tournament_fixed_steps(model, joined_df, feature_cols, target_col, 
         daily_data = joined_df[joined_df['date'] == date]
 
         # Rank assets using tournament ranking
-        ranked_assets = tournament_rank(model, daily_data, date, group_size, top_k, feature_cols)
+        ranked_assets = rank_assets(model, daily_data, date, feature_cols)
+
         # Sell all current holdings
         for asset, shares in portfolio.items():
-            if asset in daily_data['asset'].values:
-                price = daily_data[daily_data['asset'] == asset]['close'].values[0]
+            matching_rows = daily_data[daily_data['asset'] == asset]
+            if not matching_rows.empty:
+                price = matching_rows['close'].iloc[0]
                 portfolio_value += shares * price
         portfolio = {}
 
         # Buy top-ranked assets
-        cash_per_asset = portfolio_value / top_k
+        cash_per_asset = portfolio_value / min(top_k, len(ranked_assets))
         for asset in ranked_assets['asset'].head(top_k):
-            price = daily_data[daily_data['asset'] == asset]['close'].values[0]
-            shares = cash_per_asset / price
-            portfolio[asset] = shares
-            portfolio_value -= shares * price
+            matching_rows = daily_data[daily_data['asset'] == asset]
+            if not matching_rows.empty:
+                price = matching_rows['close'].iloc[0]
+                shares = cash_per_asset / price
+                portfolio[asset] = shares
+                portfolio_value -= shares * price
 
         # Record portfolio value
         portfolio_history.append({'date': date, 'portfolio_value': portfolio_value})
@@ -219,8 +240,9 @@ def backtest_tournament_fixed_steps(model, joined_df, feature_cols, target_col, 
 
     # Add the value of current holdings to the portfolio value
     for asset, shares in portfolio.items():
-        if asset in daily_data['asset'].values:
-            price = daily_data[daily_data['asset'] == asset]['close'].values[0]
+        matching_rows = daily_data[daily_data['asset'] == asset]
+        if not matching_rows.empty:
+            price = matching_rows['close'].iloc[0]
             portfolio_history.loc[portfolio_history.index[-1], 'portfolio_value'] += shares * price
 
     return portfolio_history
@@ -267,6 +289,11 @@ def apply_features(df):
     df['volume_pct_change'] = df['vol'].pct_change().fillna(0)
     df['high_low_diff'] = df['high'] - df['low']
     df['open_close_diff'] = df['open'] - df['close']
+    df['pct_change'] = df['close'].pct_change()
+    df['pct_change_5'] = df['close'].pct_change(5)
+    df['pct_change_10'] = df['close'].pct_change(10)
+    df['pct_change_21'] = df['close'].pct_change(21)
+    df = bar_change_features(df, lookbacks=[2, 3, 5, 8, 13, 21, 34, 55])
     df = df.replace([np.inf, -np.inf], np.nan).dropna().reset_index(drop=True)
     return df
 
@@ -378,7 +405,7 @@ def main():
 
     # Step 3: Initialize the ListNet model
     input_dim = len(feature_cols)
-    model = ListNetRanker(n_features=input_dim, hidden=256).to(device)
+    model = ListNetRanker(n_features=input_dim, hidden=9044).to(device)
 
     # Step 4: Train the model
     print("Starting training...")
@@ -393,7 +420,7 @@ def main():
     print("Model saved to 'listnet_model.pth'.")
 
 def test():
-    model_path = "./model_archive/listnet/listnet_epoch_2000.pth"
+    model_path = "listnet_model.pth"
     input_dim = len(feature_cols)
     model = ListNetRanker(n_features=input_dim, hidden=9044).to(device)
     model.load_state_dict(torch.load(model_path, map_location=device))
@@ -425,5 +452,5 @@ def test():
 
 
 if __name__ == "__main__":
-    #main()
+    main()
     test()
