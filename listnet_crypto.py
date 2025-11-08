@@ -94,7 +94,7 @@ def train_listnet(model, dataloader, n_epochs=20, lr=1e-3, save_dir="model_archi
         if (epoch + 1) % 10 == 0:
             if checkpoint_counter == 10:
                 checkpoint_counter = 0
-            checkpoint_path = os.path.join(save_dir, f"listnet_512_epoch_{checkpoint_counter}.pth")
+            checkpoint_path = os.path.join(save_dir, f"listnet_2048_epoch_{checkpoint_counter}.pth")
             torch.save(model.state_dict(), checkpoint_path)
             print(f"Model checkpoint saved to {checkpoint_path}")
             checkpoint_counter += 1
@@ -195,7 +195,7 @@ def backtest_tournament_fixed_steps(model, joined_df, feature_cols, target_col, 
     model.eval()
 
     # Ensure the DataFrame is sorted and aligned
-    joined_df = joined_df.sort_values('date').dropna(subset=feature_cols + ['close'])
+    joined_df = joined_df.sort_values('date').dropna()
 
     # Get the first `steps` unique dates
     unique_dates = joined_df['date'].unique()[:steps]
@@ -209,7 +209,6 @@ def backtest_tournament_fixed_steps(model, joined_df, feature_cols, target_col, 
     for date in unique_dates:
         # Filter data for the current date
         daily_data = joined_df[joined_df['date'] == date]
-
         # Rank assets using tournament ranking
         ranked_assets = rank_assets(model, daily_data, date, feature_cols)
 
@@ -404,7 +403,7 @@ def main():
 
     # Step 3: Initialize the ListNet model
     input_dim = len(feature_cols)
-    model = ListNetRanker(n_features=input_dim, hidden=512).to(device)
+    model = ListNetRanker(n_features=input_dim, hidden=2048).to(device)
 
     # Step 4: Train the model
     print("Starting training...")
@@ -429,7 +428,7 @@ def test():
             feature_cols = [col for col in dfs[crypto].columns if col not in non_feature_cols + ['date']]
     model_path = "listnet_model.pth"
     input_dim = len(feature_cols)
-    model = ListNetRanker(n_features=input_dim, hidden=512).to(device)
+    model = ListNetRanker(n_features=input_dim, hidden=2048).to(device)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
     print(f"Loaded model from {model_path}")
