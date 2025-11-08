@@ -94,7 +94,7 @@ def train_listnet(model, dataloader, n_epochs=20, lr=1e-3, save_dir="model_archi
         if (epoch + 1) % 10 == 0:
             if checkpoint_counter == 10:
                 checkpoint_counter = 0
-            checkpoint_path = os.path.join(save_dir, f"listnet_epoch_{checkpoint_counter}.pth")
+            checkpoint_path = os.path.join(save_dir, f"listnet_512_epoch_{checkpoint_counter}.pth")
             torch.save(model.state_dict(), checkpoint_path)
             print(f"Model checkpoint saved to {checkpoint_path}")
             checkpoint_counter += 1
@@ -383,7 +383,7 @@ def get_dfs():
     # Step 3: Filter DataFrames by length
     filtered_dfs = {crypto: df for crypto, df in dfs.items() if len(df) == mode_length}
     print(f"Filtered {len(dfs) - len(filtered_dfs)} DataFrames that do not match the mode length.")
-    non_feature_cols = dfs.items()[0][1].columns
+    non_feature_cols = list(dfs.items())[0][1].columns
     return filtered_dfs, non_feature_cols.tolist() 
 
 def main():
@@ -404,7 +404,7 @@ def main():
 
     # Step 3: Initialize the ListNet model
     input_dim = len(feature_cols)
-    model = ListNetRanker(n_features=input_dim, hidden=9044).to(device)
+    model = ListNetRanker(n_features=input_dim, hidden=512).to(device)
 
     # Step 4: Train the model
     print("Starting training...")
@@ -429,13 +429,13 @@ def test():
             feature_cols = [col for col in dfs[crypto].columns if col not in non_feature_cols + ['date']]
     model_path = "listnet_model.pth"
     input_dim = len(feature_cols)
-    model = ListNetRanker(n_features=input_dim, hidden=9044).to(device)
+    model = ListNetRanker(n_features=input_dim, hidden=512).to(device)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
     print(f"Loaded model from {model_path}")
     # Join all DataFrames on the 'date' column
     joined_df = join_dataframes_on_date(dfs)
-
+    print(joined_df.columns)
     print("Starting backtest...")
     portfolio_history = backtest_tournament_fixed_steps(
         model, joined_df, feature_cols, target_col,
@@ -451,5 +451,5 @@ def test():
 
 
 if __name__ == "__main__":
-    main()
+    #main()
     test()
