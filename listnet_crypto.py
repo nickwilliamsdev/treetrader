@@ -55,12 +55,13 @@ def join_dataframes_on_date(dfs):
     """
     joined_df = None
     for asset, df in dfs.items():
-        df = df.copy()
-        df['asset'] = asset  # Add an 'asset' column to identify the asset
+        df_join = df.copy()
+        df_join['asset'] = asset  # Add an 'asset' column to identify the asset
         if joined_df is None:
-            joined_df = df
+            joined_df = df_join
         else:
-            joined_df = pd.concat([joined_df, df], ignore_index=True)
+            joined_df = pd.concat([joined_df, df_join], ignore_index=True)
+    print(joined_df.head())
     return joined_df
 
 def train_listnet(model, dataloader, n_epochs=20, lr=1e-3, save_dir="model_archive/listnet"):
@@ -175,7 +176,7 @@ def tournament_rank(model, features_df, date, group_size=10, feature_cols=None):
     # Return the final winner
     return current
 
-def backtest_tournament_fixed_steps(model, joined_df, feature_cols, target_col, steps=30, group_size=10, top_k=10, initial_cash=10000):
+def backtest_tournament_fixed_steps(model, joined_df, feature_cols, target_col, steps=30, group_size=10, top_k=1, initial_cash=10000):
     """
     Backtests the model using tournament ranking over a fixed number of steps.
 
@@ -223,6 +224,7 @@ def backtest_tournament_fixed_steps(model, joined_df, feature_cols, target_col, 
         # Buy top-ranked assets
         cash_per_asset = portfolio_value / min(top_k, len(ranked_assets))
         for asset in ranked_assets['asset'].head(top_k):
+            print(f"Buying asset: {asset} on date: {date}")
             matching_rows = daily_data[daily_data['asset'] == asset]
             if not matching_rows.empty:
                 price = matching_rows['close'].iloc[0]
@@ -350,6 +352,7 @@ def prepare_data(dfs, feature_cols, target_col, train_split=0.8, list_size=10):
         tuple: Training and validation DataLoaders.
     """
     all_data = pd.concat(dfs.values(), ignore_index=True)
+    print(all_data.head())
     train_size = int(len(all_data) * train_split)
     train_data = all_data[:train_size]
     val_data = all_data[train_size:]
