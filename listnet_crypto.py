@@ -60,7 +60,7 @@ def join_dataframes_on_date(dfs):
         if joined_df is None:
             joined_df = df_join
         else:
-            joined_df = pd.concat([joined_df, df_join], ignore_index=True)
+            joined_df = pd.merge(joined_df, df_join, on='date', how='outer', suffixes=('', f'_{asset}'))
     print(joined_df.head())
     return joined_df
 
