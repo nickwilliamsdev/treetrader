@@ -197,7 +197,7 @@ def backtest_tournament_fixed_steps(model, joined_df, feature_cols, target_col, 
 
     # Ensure the DataFrame is sorted and aligned
     joined_df = joined_df.sort_values('date').dropna()
-
+    print(joined_df.head())
     # Get the first `steps` unique dates
     unique_dates = joined_df['date'].unique()[:steps]
 
