@@ -60,7 +60,8 @@ def join_dataframes_on_date(dfs):
         if joined_df is None:
             joined_df = df_join
         else:
-            joined_df = pd.merge(joined_df, df_join, on='date', how='outer', suffixes=('', f'_{asset}'))
+            #joined_df = pd.merge(joined_df, df_join, on='date', how='outer', suffixes=('', f'_{asset}'))
+            joined_df = pd.concat([joined_df, df_join], ignore_index=True)
     print(joined_df.head())
     return joined_df
 
@@ -176,7 +177,7 @@ def tournament_rank(model, features_df, date, group_size=10, feature_cols=None):
     # Return the final winner
     return current
 
-def backtest_tournament_fixed_steps(model, joined_df, feature_cols, target_col, steps=30, group_size=10, top_k=1, initial_cash=10000):
+def backtest_tournament_fixed_steps(model, joined_df, feature_cols, target_col, steps=30, group_size=10, top_k=10, initial_cash=10000):
     """
     Backtests the model using tournament ranking over a fixed number of steps.
 
@@ -208,6 +209,7 @@ def backtest_tournament_fixed_steps(model, joined_df, feature_cols, target_col, 
 
     # Iterate over the selected dates
     for date in unique_dates:
+        print(f"Backtesting for date: {date}")
         # Filter data for the current date
         daily_data = joined_df[joined_df['date'] == date]
         # Rank assets using tournament ranking
@@ -218,7 +220,7 @@ def backtest_tournament_fixed_steps(model, joined_df, feature_cols, target_col, 
             matching_rows = daily_data[daily_data['asset'] == asset]
             if not matching_rows.empty:
                 price = matching_rows['close'].iloc[0]
-                portfolio_value += shares * price
+                portfolio_value = shares * price
         portfolio = {}
 
         # Buy top-ranked assets
@@ -230,20 +232,12 @@ def backtest_tournament_fixed_steps(model, joined_df, feature_cols, target_col, 
                 price = matching_rows['close'].iloc[0]
                 shares = cash_per_asset / price
                 portfolio[asset] = shares
-                portfolio_value -= shares * price
 
         # Record portfolio value
         portfolio_history.append({'date': date, 'portfolio_value': portfolio_value})
 
     # Convert portfolio history to DataFrame
     portfolio_history = pd.DataFrame(portfolio_history)
-
-    # Add the value of current holdings to the portfolio value
-    for asset, shares in portfolio.items():
-        matching_rows = daily_data[daily_data['asset'] == asset]
-        if not matching_rows.empty:
-            price = matching_rows['close'].iloc[0]
-            portfolio_history.loc[portfolio_history.index[-1], 'portfolio_value'] += shares * price
 
     return portfolio_history
 
@@ -303,7 +297,7 @@ def apply_target(df):
     Returns:
         pd.DataFrame: The DataFrame with target variable added.
     """
-    df['target'] = df['close'].pct_change(5).shift(-5).fillna(0)  # Example: 5-day future return
+    df['target'] = df['close'].pct_change(2).shift(-2).fillna(0)
     return df
 
 class CryptoDataset(Dataset):
@@ -453,5 +447,5 @@ def test():
 
 
 if __name__ == "__main__":
-    #main()
+    main()
     test()
