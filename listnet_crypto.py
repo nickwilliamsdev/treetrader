@@ -96,7 +96,7 @@ def train_listnet(model, dataloader, n_epochs=20, lr=1e-3, save_dir="model_archi
         if (epoch + 1) % 10 == 0:
             if checkpoint_counter == 10:
                 checkpoint_counter = 0
-            checkpoint_path = os.path.join(save_dir, f"listnet_2048_epoch_{checkpoint_counter}.pth")
+            checkpoint_path = os.path.join(save_dir, f"listnet.pth")
             torch.save(model.state_dict(), checkpoint_path)
             print(f"Model checkpoint saved to {checkpoint_path}")
             checkpoint_counter += 1
@@ -177,7 +177,7 @@ def tournament_rank(model, features_df, date, group_size=10, feature_cols=None):
     # Return the final winner
     return current
 
-def backtest_tournament_fixed_steps(model, joined_df, feature_cols, target_col, steps=30, group_size=10, top_k=10, initial_cash=10000):
+def backtest_tournament_fixed_steps(model, joined_df, feature_cols, target_col, steps=30, group_size=10, top_k=2, initial_cash=10000):
     """
     Backtests the model using tournament ranking over a fixed number of steps.
 
@@ -208,7 +208,9 @@ def backtest_tournament_fixed_steps(model, joined_df, feature_cols, target_col, 
     portfolio_history = []
 
     # Iterate over the selected dates
-    for date in unique_dates:
+    for ix, date in enumerate(unique_dates):
+        if ix % 2 != 0:
+            continue
         print(f"Backtesting for date: {date}")
         # Filter data for the current date
         daily_data = joined_df[joined_df['date'] == date]
@@ -220,7 +222,7 @@ def backtest_tournament_fixed_steps(model, joined_df, feature_cols, target_col, 
             matching_rows = daily_data[daily_data['asset'] == asset]
             if not matching_rows.empty:
                 price = matching_rows['close'].iloc[0]
-                portfolio_value = shares * price
+                portfolio_value += shares * price
         portfolio = {}
 
         # Buy top-ranked assets
@@ -232,9 +234,8 @@ def backtest_tournament_fixed_steps(model, joined_df, feature_cols, target_col, 
                 price = matching_rows['close'].iloc[0]
                 shares = cash_per_asset / price
                 portfolio[asset] = shares
-
-        # Record portfolio value
         portfolio_history.append({'date': date, 'portfolio_value': portfolio_value})
+        portfolio_value = 0
 
     # Convert portfolio history to DataFrame
     portfolio_history = pd.DataFrame(portfolio_history)
@@ -331,7 +332,7 @@ class CryptoDataset(Dataset):
         y = torch.tensor(group[self.target_col].values, dtype=torch.float32)  # (list_size,)
         return X, y
 
-def prepare_data(dfs, feature_cols, target_col, train_split=0.8, list_size=10):
+def prepare_data(dfs, feature_cols, target_col, train_split=0.5, list_size=10):
     """
     Prepares training and validation datasets from the given DataFrames.
 
@@ -354,8 +355,8 @@ def prepare_data(dfs, feature_cols, target_col, train_split=0.8, list_size=10):
     train_dataset = CryptoDataset(train_data, feature_cols, target_col, list_size=list_size)
     val_dataset = CryptoDataset(val_data, feature_cols, target_col, list_size=list_size)
 
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
-    val_loader = DataLoader(val_dataset, batch_size=32, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=89, shuffle=False)
+    val_loader = DataLoader(val_dataset, batch_size=12, shuffle=False)
 
     return train_loader, val_loader
 
@@ -400,11 +401,11 @@ def main():
 
     # Step 3: Initialize the ListNet model
     input_dim = len(feature_cols)
-    model = ListNetRanker(n_features=input_dim, hidden=2048).to(device)
+    model = ListNetRanker(n_features=input_dim, hidden=1024).to(device)
 
     # Step 4: Train the model
     print("Starting training...")
-    train_listnet(model, train_loader, n_epochs=9044, lr=1e-3)
+    train_listnet(model, train_loader, n_epochs=9044, lr=1e-4)
 
     # Step 5: Validate the model
     print("Validating the model...")
@@ -423,9 +424,9 @@ def test():
         dfs[crypto] = apply_features(df)
         if not feature_cols:
             feature_cols = [col for col in dfs[crypto].columns if col not in non_feature_cols + ['date']]
-    model_path = "listnet_model.pth"
+    model_path = "./model_archive/listnet/listnet.pth"
     input_dim = len(feature_cols)
-    model = ListNetRanker(n_features=input_dim, hidden=2048).to(device)
+    model = ListNetRanker(n_features=input_dim, hidden=1024).to(device)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
     print(f"Loaded model from {model_path}")
@@ -435,7 +436,7 @@ def test():
     print("Starting backtest...")
     portfolio_history = backtest_tournament_fixed_steps(
         model, joined_df, feature_cols, target_col,
-        steps=30, group_size=10, top_k=5, initial_cash=10000
+        steps=300, group_size=10, top_k=3, initial_cash=10000
     )
     print(portfolio_history)
 
