@@ -8,9 +8,9 @@ from api_wrappers.kraken_wrapper import KrakenWrapper
 import os
 import matplotlib.pyplot as plt
 from scipy.stats import mode
-from utils.feature_functions import bar_change_features
+from utils.feature_functions import bar_change_features, apply_slope_features
 
-four_hour_wrapper = KrakenWrapper(lb_interval='4hr')
+four_hour_wrapper = KrakenWrapper(lb_interval='1day')
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
@@ -100,7 +100,7 @@ def train_listnet(model, dataloader, n_epochs=20, lr=1e-3, save_dir="model_archi
             torch.save(model.state_dict(), checkpoint_path)
             print(f"Model checkpoint saved to {checkpoint_path}")
             checkpoint_counter += 1
-        print(f"Epoch {epoch}: mean loss = {np.mean(losses):.4f}")
+            print(f"Epoch {epoch}: mean loss = {np.mean(losses):.4f}")
 
 
 def rank_assets(model, features_df, date, feature_cols):
@@ -126,7 +126,7 @@ def rank_assets(model, features_df, date, feature_cols):
     X = torch.tensor(subset[feature_cols].values, dtype=torch.float32).unsqueeze(0).to(device)  # (1, list_size, n_features)
     scores = model(X).detach().cpu().numpy().squeeze(0)  # (list_size,)
     subset['score'] = scores
-    return subset.sort_values('score', ascending=False)
+    return subset.sort_values('score', ascending=True)
 
 
 def tournament_rank(model, features_df, date, group_size=10, feature_cols=None):
@@ -209,8 +209,6 @@ def backtest_tournament_fixed_steps(model, joined_df, feature_cols, target_col, 
 
     # Iterate over the selected dates
     for ix, date in enumerate(unique_dates):
-        if ix % 2 != 0:
-            continue
         print(f"Backtesting for date: {date}")
         # Filter data for the current date
         daily_data = joined_df[joined_df['date'] == date]
@@ -284,6 +282,7 @@ def apply_features(df):
     df['volume_pct_change'] = df['vol'].pct_change().fillna(0)
     df['high_low_diff'] = df['high'] - df['low']
     df['open_close_diff'] = df['open'] - df['close']
+    df = apply_slope_features(df, columns=['close', 'vol'], lookbacks=[5, 8, 13, 21, 34, 55, 89], dropna=False)
     df = bar_change_features(df, lookbacks=[2, 3, 5, 8, 13, 21, 34, 55])
     df = df.replace([np.inf, -np.inf], np.nan).dropna().reset_index(drop=True)
     return df
@@ -298,7 +297,7 @@ def apply_target(df):
     Returns:
         pd.DataFrame: The DataFrame with target variable added.
     """
-    df['target'] = df['close'].pct_change(2).shift(-2).fillna(0)
+    df['target'] = df['close'].pct_change().shift(-1).fillna(0)
     return df
 
 class CryptoDataset(Dataset):
@@ -332,7 +331,7 @@ class CryptoDataset(Dataset):
         y = torch.tensor(group[self.target_col].values, dtype=torch.float32)  # (list_size,)
         return X, y
 
-def prepare_data(dfs, feature_cols, target_col, train_split=0.5, list_size=10):
+def prepare_data(dfs, feature_cols, target_col, train_split=0.5, list_size=21):
     """
     Prepares training and validation datasets from the given DataFrames.
 
@@ -397,15 +396,15 @@ def main():
             feature_cols = [col for col in dfs[crypto].columns if col not in non_feature_cols + ['date']]
 
     # Step 2: Prepare training and validation data
-    train_loader, val_loader = prepare_data(dfs, feature_cols, target_col)
+    train_loader, val_loader = prepare_data(dfs, feature_cols, target_col, list_size=50)
 
     # Step 3: Initialize the ListNet model
     input_dim = len(feature_cols)
-    model = ListNetRanker(n_features=input_dim, hidden=1024).to(device)
+    model = ListNetRanker(n_features=input_dim, hidden=64).to(device)
 
     # Step 4: Train the model
     print("Starting training...")
-    train_listnet(model, train_loader, n_epochs=9044, lr=1e-4)
+    train_listnet(model, train_loader, n_epochs=100000, lr=1e-4)
 
     # Step 5: Validate the model
     print("Validating the model...")
@@ -426,7 +425,7 @@ def test():
             feature_cols = [col for col in dfs[crypto].columns if col not in non_feature_cols + ['date']]
     model_path = "./model_archive/listnet/listnet.pth"
     input_dim = len(feature_cols)
-    model = ListNetRanker(n_features=input_dim, hidden=1024).to(device)
+    model = ListNetRanker(n_features=input_dim, hidden=64).to(device)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
     print(f"Loaded model from {model_path}")
@@ -436,7 +435,7 @@ def test():
     print("Starting backtest...")
     portfolio_history = backtest_tournament_fixed_steps(
         model, joined_df, feature_cols, target_col,
-        steps=300, group_size=10, top_k=3, initial_cash=10000
+        steps=300, group_size=50, top_k=5, initial_cash=10000
     )
     print(portfolio_history)
 
