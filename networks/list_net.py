@@ -5,15 +5,17 @@ import torch.nn.functional as F
 class ListNetRanker(nn.Module):
     def __init__(self, n_features, hidden=9044):
         super().__init__()
+        self.in_layer = nn.Linear(n_features, hidden)
         self.net = nn.Sequential(
-            nn.Linear(n_features, hidden), nn.ReLU(),
             nn.Linear(hidden, hidden), nn.ReLU(),
             nn.Linear(hidden, hidden), nn.ReLU(),
-            nn.Linear(hidden, 1)
         )
+        self.out_layer = nn.Linear(hidden, 1)
     def forward(self, X):
         # X: (batch, list_size, n_features)
-        scores = self.net(X)  # (batch, list_size, 1)
+        X_in = F.relu(self.in_layer(X))
+        x = self.net(X_in) + X_in # Residual connection
+        scores = F.relu(self.out_layer(x))
         return scores.squeeze(-1)  # (batch, list_size)
 
 class AttentionListNetRanker(nn.Module):
