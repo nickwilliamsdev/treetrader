@@ -8,9 +8,9 @@ from api_wrappers.kraken_wrapper import KrakenWrapper
 import os
 import matplotlib.pyplot as plt
 from scipy.stats import mode
-from utils.feature_functions import bar_change_features, apply_slope_features
+from utils.feature_functions import bar_change_features, apply_slope_features, apply_green_red
 
-four_hour_wrapper = KrakenWrapper(lb_interval='1day')
+four_hour_wrapper = KrakenWrapper(lb_interval='1week')
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 print(f"Using device: {device}")
 
@@ -126,7 +126,7 @@ def rank_assets(model, features_df, date, feature_cols):
     X = torch.tensor(subset[feature_cols].values, dtype=torch.float32).unsqueeze(0).to(device)  # (1, list_size, n_features)
     scores = model(X).detach().cpu().numpy().squeeze(0)  # (list_size,)
     subset['score'] = scores
-    return subset.sort_values('score', ascending=True)
+    return subset.sort_values('score', ascending=False)
 
 
 def tournament_rank(model, features_df, date, group_size=10, feature_cols=None):
@@ -206,7 +206,7 @@ def backtest_tournament_fixed_steps(model, joined_df, feature_cols, target_col, 
     portfolio_value = initial_cash
     portfolio = {}  # {asset: number of shares}
     portfolio_history = []
-    rank_assets = []
+    ranked_assets = []
 
     # Iterate over the selected dates
     for ix, date in enumerate(unique_dates):
@@ -289,7 +289,8 @@ def apply_features(df):
     df['high_low_diff'] = df['high'] - df['low']
     df['open_close_diff'] = df['open'] - df['close']
     df = apply_slope_features(df, columns=['close', 'vol'], lookbacks=[5, 8, 13, 21, 34, 55, 89], dropna=False)
-    df = bar_change_features(df, lookbacks=[2, 3, 5, 8, 13, 21, 34, 55])
+    df = apply_green_red(df, dropna=False)
+    df = bar_change_features(df, lookbacks=[2, 3, 5, 8, 13, 21, 34, 55, 89])
     df = df.replace([np.inf, -np.inf], np.nan).dropna().reset_index(drop=True)
     return df
 
@@ -303,7 +304,7 @@ def apply_target(df):
     Returns:
         pd.DataFrame: The DataFrame with target variable added.
     """
-    df['target'] = df['close'].pct_change().shift(-1).fillna(0)
+    df['target'] = df['close'].pct_change(5).shift(-5).fillna(0)
     return df
 
 class CryptoDataset(Dataset):
@@ -360,8 +361,8 @@ def prepare_data(dfs, feature_cols, target_col, train_split=0.5, list_size=21):
     train_dataset = CryptoDataset(train_data, feature_cols, target_col, list_size=list_size)
     val_dataset = CryptoDataset(val_data, feature_cols, target_col, list_size=list_size)
 
-    train_loader = DataLoader(train_dataset, batch_size=89, shuffle=False)
-    val_loader = DataLoader(val_dataset, batch_size=12, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=55, shuffle=False)
+    val_loader = DataLoader(val_dataset, batch_size=55, shuffle=False)
 
     return train_loader, val_loader
 
@@ -396,7 +397,9 @@ def main():
     feature_cols = []
     dfs, non_feature_cols = get_dfs()
     for crypto, df in dfs.items():
-        df['date'] = pd.to_datetime(df['date'], unit='s')  # Convert timestamps to datetime
+        df['vol'] = df['volume']
+        del df['volume']
+        df['date'] = pd.to_datetime(df['date'] / 1000, unit='s')  # Convert timestamps to datetime
         dfs[crypto] = apply_features(df)
         if not feature_cols:
             feature_cols = [col for col in dfs[crypto].columns if col not in non_feature_cols + ['date']]
@@ -406,11 +409,11 @@ def main():
 
     # Step 3: Initialize the ListNet model
     input_dim = len(feature_cols)
-    model = ListNetRanker(n_features=input_dim, hidden=10).to(device)
+    model = ListNetRanker(n_features=input_dim, hidden=1024).to(device)
 
     # Step 4: Train the model
     print("Starting training...")
-    train_listnet(model, train_loader, n_epochs=100000, lr=1e-4)
+    train_listnet(model, train_loader, n_epochs=9044, lr=.00001)
 
     # Step 5: Validate the model
     print("Validating the model...")
@@ -425,13 +428,15 @@ def test():
     feature_cols = []
     dfs, non_feature_cols = get_dfs()
     for crypto, df in dfs.items():
-        df['date'] = pd.to_datetime(df['date'], unit='s')  # Convert timestamps to datetime
+        df['vol'] = df['volume']
+        del df['volume']
+        df['date'] = pd.to_datetime(df['date'] / 1000, unit='s')  # Convert timestamps to datetime
         dfs[crypto] = apply_features(df)
         if not feature_cols:
             feature_cols = [col for col in dfs[crypto].columns if col not in non_feature_cols + ['date']]
     model_path = "./model_archive/listnet/listnet.pth"
     input_dim = len(feature_cols)
-    model = ListNetRanker(n_features=input_dim, hidden=10).to(device)
+    model = ListNetRanker(n_features=input_dim, hidden=1024).to(device)
     model.load_state_dict(torch.load(model_path, map_location=device))
     model.eval()
     print(f"Loaded model from {model_path}")
@@ -453,5 +458,5 @@ def test():
 
 
 if __name__ == "__main__":
-    #main()
+    main()
     test()

@@ -35,7 +35,7 @@ class KrakenWrapper(object):
         self.majors = ['BTC', 'ETH', "LTC"]
         return
     
-    def update_or_create_hist_files(self, data_dir="./hist_data/crypto/kraken_1day/"):
+    def update_or_create_hist_files(self, data_dir="./hist_data/crypto/kraken_1week/"):
         """
         Update existing historical files with new data or create new files if they don't exist.
         

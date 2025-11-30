@@ -75,7 +75,7 @@ for asset_file in os.listdir(asset_dir):
     if asset_file.endswith('.txt'):
         asset_path = os.path.join(asset_dir, asset_file)
         df = pd.read_csv(asset_path, sep=',')
-        df['Date'] = pd.to_datetime(df['date'], unit='s')
+        df['Date'] = pd.to_datetime(df['date']*100, unit='s')
         df = df.set_index('Date')
         price_dfs[asset_file] = df
 
