@@ -12,11 +12,12 @@ class ListNetRanker(nn.Module):
         )
         self.out_layer = nn.Linear(hidden, 1)
     def forward(self, X):
-        # X: (batch, list_size, n_features)
-        X_in = F.relu(self.in_layer(X))
-        x = self.net(X_in) + X_in # Residual connection
+        x = F.relu(self.in_layer(X))
+        residual = x  # Save the input for the residual connection
+        x = self.net(x)
+        x += residual  # Add the residual connection
         scores = F.relu(self.out_layer(x))
-        return scores.squeeze(-1)  # (batch, list_size)
+        return scores.squeeze(-1)
 
 class AttentionListNetRanker(nn.Module):
     def __init__(self, n_features, hidden=128, n_heads=4, dropout=0.1):

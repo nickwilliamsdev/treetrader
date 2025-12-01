@@ -17,7 +17,7 @@ print(f"Using device: {device}")
 # Define feature columns and target column
 target_col = 'close_pct_change'  # Example target column
 
-def listnet_loss(scores, true_returns, temperature=0.01):
+def listnet_loss(scores, true_returns, temperature=0.1):
     """
     Computes the ListNet loss between predicted scores and true returns.
 
@@ -92,6 +92,7 @@ def train_listnet(model, dataloader, n_epochs=20, lr=1e-3, save_dir="model_archi
             loss = listnet_loss(scores, y)
             loss.backward()
             opt.step()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)  # Gradient clipping
             losses.append(loss.item())
         if (epoch + 1) % 10 == 0:
             if checkpoint_counter == 10:
@@ -288,8 +289,8 @@ def apply_features(df):
     df['volume_pct_change'] = df['vol'].pct_change().fillna(0)
     df['high_low_diff'] = df['high'] - df['low']
     df['open_close_diff'] = df['open'] - df['close']
-    df = apply_slope_features(df, columns=['close', 'vol'], lookbacks=[5, 8, 13, 21, 34, 55, 89], dropna=False)
-    df = apply_green_red(df, dropna=False)
+    #df = apply_slope_features(df, columns=['close', 'vol'], lookbacks=[5, 8, 13, 21, 34, 55, 89], dropna=False)
+    #df = apply_green_red(df, dropna=False)
     df = bar_change_features(df, lookbacks=[2, 3, 5, 8, 13, 21, 34, 55, 89])
     df = df.replace([np.inf, -np.inf], np.nan).dropna().reset_index(drop=True)
     return df
@@ -304,7 +305,7 @@ def apply_target(df):
     Returns:
         pd.DataFrame: The DataFrame with target variable added.
     """
-    df['target'] = df['close'].pct_change(5).shift(-5).fillna(0)
+    df['target'] = df['close'].pct_change().shift(-1).fillna(0)
     return df
 
 class CryptoDataset(Dataset):
@@ -361,8 +362,8 @@ def prepare_data(dfs, feature_cols, target_col, train_split=0.5, list_size=21):
     train_dataset = CryptoDataset(train_data, feature_cols, target_col, list_size=list_size)
     val_dataset = CryptoDataset(val_data, feature_cols, target_col, list_size=list_size)
 
-    train_loader = DataLoader(train_dataset, batch_size=55, shuffle=False)
-    val_loader = DataLoader(val_dataset, batch_size=55, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=89, shuffle=False)
+    val_loader = DataLoader(val_dataset, batch_size=89, shuffle=False)
 
     return train_loader, val_loader
 
@@ -399,13 +400,13 @@ def main():
     for crypto, df in dfs.items():
         df['vol'] = df['volume']
         del df['volume']
-        df['date'] = pd.to_datetime(df['date'] / 1000, unit='s')  # Convert timestamps to datetime
+        #df['date'] = pd.to_datetime(df['date'] / 1000, unit='s')  # Convert timestamps to datetime
         dfs[crypto] = apply_features(df)
         if not feature_cols:
             feature_cols = [col for col in dfs[crypto].columns if col not in non_feature_cols + ['date']]
 
     # Step 2: Prepare training and validation data
-    train_loader, val_loader = prepare_data(dfs, feature_cols, target_col, list_size=50)
+    train_loader, val_loader = prepare_data(dfs, feature_cols, target_col, list_size=5)
 
     # Step 3: Initialize the ListNet model
     input_dim = len(feature_cols)
@@ -413,7 +414,7 @@ def main():
 
     # Step 4: Train the model
     print("Starting training...")
-    train_listnet(model, train_loader, n_epochs=9044, lr=.00001)
+    train_listnet(model, train_loader, n_epochs=9044, lr=.0001)
 
     # Step 5: Validate the model
     print("Validating the model...")
