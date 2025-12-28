@@ -1,3 +1,10 @@
 from massive import RESTClient
+import os
+api_key = os.environ.get("POLYGON_API_KEY")
+if not api_key:
+    raise ValueError("POLYGON_API_KEY environment variable not set")
 
-client = RESTClient(api_key="<API_KEY>")
+hist_data_dir = "../hist_data/stocks/single"
+
+client = RESTClient(api_key=api_key)
+
