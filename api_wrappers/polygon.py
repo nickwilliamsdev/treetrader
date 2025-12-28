@@ -1,0 +1,3 @@
+from massive import RESTClient
+
+client = RESTClient(api_key="<API_KEY>")
