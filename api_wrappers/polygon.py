@@ -10,5 +10,9 @@ client = RESTClient(api_key=api_key)
 
 
 syms = client.list_tickers(limit=100)
-for sym in syms:
-    print(sym)
+tickers = [sym.ticker for sym in syms]
+
+test_ticker = tickers[0]
+
+ticker_hist = client.get_ticker_details(test_ticker)
+
