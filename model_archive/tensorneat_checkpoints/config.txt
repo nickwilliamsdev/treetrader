@@ -1,0 +1,85 @@
+{
+    "algorithm": {
+        "genome": {
+            "num_inputs": "8",
+            "num_outputs": "1",
+            "max_nodes": "100",
+            "max_conns": "1500",
+            "node_gene": {
+                "bias_init_mean": "0.0",
+                "bias_init_std": "0.1",
+                "bias_mutate_power": "0.05",
+                "bias_mutate_rate": "0.01",
+                "bias_replace_rate": "0.0",
+                "bias_lower_bound": "-5",
+                "bias_upper_bound": "5",
+                "aggregation_default": "0",
+                "aggregation_options": "[<function sum_ at 0x000001CCFEDE3100>]",
+                "aggregation_indices": "[0]",
+                "aggregation_replace_rate": "0.1",
+                "activation_default": "0",
+                "activation_options": "[<function tanh_ at 0x000001CCFEDE3420>]",
+                "activation_indices": "[0]",
+                "activation_replace_rate": "0.1"
+            },
+            "conn_gene": {
+                "weight_init_mean": "0.0",
+                "weight_init_std": "0.1",
+                "weight_mutate_power": "0.05",
+                "weight_mutate_rate": "0.001",
+                "weight_replace_rate": "0.0",
+                "weight_lower_bound": "-5.0",
+                "weight_upper_bound": "5.0"
+            },
+            "mutation": {
+                "conn_add": "0.2",
+                "conn_delete": "0.2",
+                "node_add": "0.1",
+                "node_delete": "0.1"
+            },
+            "crossover": {},
+            "distance": {
+                "compatibility_disjoint": "1.0",
+                "compatibility_weight": "0.4"
+            },
+            "output_transform": "<function tanh_ at 0x000001CCFEDE3420>",
+            "input_transform": "None",
+            "input_idx": "[0 1 2 3 4 5 6 7]",
+            "output_idx": "[11]",
+            "all_init_nodes": "[ 0  1  2  3  4  5  6  7  8  9 10 11]",
+            "all_init_conns": "[[ 0  8]\n [ 0  9]\n [ 0 10]\n [ 1  8]\n [ 1  9]\n [ 1 10]\n [ 2  8]\n [ 2  9]\n [ 2 10]\n [ 3  8]\n [ 3  9]\n [ 3 10]\n [ 4  8]\n [ 4  9]\n [ 4 10]\n [ 5  8]\n [ 5  9]\n [ 5 10]\n [ 6  8]\n [ 6  9]\n [ 6 10]\n [ 7  8]\n [ 7  9]\n [ 7 10]\n [ 8 11]\n [ 9 11]\n [10 11]]"
+        },
+        "pop_size": "1000",
+        "species_controller": {
+            "pop_size": "1000",
+            "species_size": "10",
+            "species_arange": "[0 1 2 3 4 5 6 7 8 9]",
+            "max_stagnation": "15",
+            "species_elitism": "2",
+            "spawn_number_change_rate": "0.5",
+            "genome_elitism": "2",
+            "survival_threshold": "0.1",
+            "min_species_size": "1",
+            "compatibility_threshold": "0.8",
+            "species_fitness_func": "<function max at 0x000001CCFD4BFF60>",
+            "species_number_calculate_by": "rank"
+        }
+    },
+    "problem": {
+        "pop_counter": "0",
+        "start_idx": "3918",
+        "end_idx": "3952"
+    },
+    "seed": "42",
+    "fitness_target": "0.01",
+    "generation_limit": "30",
+    "pop_size": "1000",
+    "best_genome": "None",
+    "best_fitness": "-inf",
+    "generation_timestamp": "None",
+    "is_save": "True",
+    "save_dir": "./model_archive/tensorneat_checkpoints",
+    "genome_dir": "./model_archive/tensorneat_checkpoints\\genomes",
+    "show_problem_details": "False",
+    "using_multidevice": "False"
+}
