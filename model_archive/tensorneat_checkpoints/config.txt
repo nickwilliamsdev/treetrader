@@ -14,11 +14,11 @@
                 "bias_lower_bound": "-5",
                 "bias_upper_bound": "5",
                 "aggregation_default": "0",
-                "aggregation_options": "[<function sum_ at 0x00000186D63A63E0>]",
+                "aggregation_options": "[<function sum_ at 0x0000023C0C79AFC0>]",
                 "aggregation_indices": "[0]",
                 "aggregation_replace_rate": "0.1",
                 "activation_default": "0",
-                "activation_options": "[<function tanh_ at 0x00000186D63A6700>]",
+                "activation_options": "[<function tanh_ at 0x0000023C0C79B2E0>]",
                 "activation_indices": "[0]",
                 "activation_replace_rate": "0.1"
             },
@@ -42,16 +42,16 @@
                 "compatibility_disjoint": "1.0",
                 "compatibility_weight": "0.4"
             },
-            "output_transform": "<function tanh_ at 0x00000186D63A6700>",
+            "output_transform": "<function tanh_ at 0x0000023C0C79B2E0>",
             "input_transform": "None",
             "input_idx": "[0 1 2 3 4 5 6 7]",
-            "output_idx": "[18]",
-            "all_init_nodes": "[ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18]",
-            "all_init_conns": "[[ 0  8]\n [ 0  9]\n [ 0 10]\n [ 0 11]\n [ 0 12]\n [ 0 13]\n [ 0 14]\n [ 0 15]\n [ 0 16]\n [ 0 17]\n [ 1  8]\n [ 1  9]\n [ 1 10]\n [ 1 11]\n [ 1 12]\n [ 1 13]\n [ 1 14]\n [ 1 15]\n [ 1 16]\n [ 1 17]\n [ 2  8]\n [ 2  9]\n [ 2 10]\n [ 2 11]\n [ 2 12]\n [ 2 13]\n [ 2 14]\n [ 2 15]\n [ 2 16]\n [ 2 17]\n [ 3  8]\n [ 3  9]\n [ 3 10]\n [ 3 11]\n [ 3 12]\n [ 3 13]\n [ 3 14]\n [ 3 15]\n [ 3 16]\n [ 3 17]\n [ 4  8]\n [ 4  9]\n [ 4 10]\n [ 4 11]\n [ 4 12]\n [ 4 13]\n [ 4 14]\n [ 4 15]\n [ 4 16]\n [ 4 17]\n [ 5  8]\n [ 5  9]\n [ 5 10]\n [ 5 11]\n [ 5 12]\n [ 5 13]\n [ 5 14]\n [ 5 15]\n [ 5 16]\n [ 5 17]\n [ 6  8]\n [ 6  9]\n [ 6 10]\n [ 6 11]\n [ 6 12]\n [ 6 13]\n [ 6 14]\n [ 6 15]\n [ 6 16]\n [ 6 17]\n [ 7  8]\n [ 7  9]\n [ 7 10]\n [ 7 11]\n [ 7 12]\n [ 7 13]\n [ 7 14]\n [ 7 15]\n [ 7 16]\n [ 7 17]\n [ 8 18]\n [ 9 18]\n [10 18]\n [11 18]\n [12 18]\n [13 18]\n [14 18]\n [15 18]\n [16 18]\n [17 18]]"
+            "output_idx": "[11]",
+            "all_init_nodes": "[ 0  1  2  3  4  5  6  7  8  9 10 11]",
+            "all_init_conns": "[[ 0  8]\n [ 0  9]\n [ 0 10]\n [ 1  8]\n [ 1  9]\n [ 1 10]\n [ 2  8]\n [ 2  9]\n [ 2 10]\n [ 3  8]\n [ 3  9]\n [ 3 10]\n [ 4  8]\n [ 4  9]\n [ 4 10]\n [ 5  8]\n [ 5  9]\n [ 5 10]\n [ 6  8]\n [ 6  9]\n [ 6 10]\n [ 7  8]\n [ 7  9]\n [ 7 10]\n [ 8 11]\n [ 9 11]\n [10 11]]"
         },
-        "pop_size": "89",
+        "pop_size": "144",
         "species_controller": {
-            "pop_size": "89",
+            "pop_size": "144",
             "species_size": "5",
             "species_arange": "[0 1 2 3 4]",
             "max_stagnation": "15",
@@ -61,19 +61,19 @@
             "survival_threshold": "0.1",
             "min_species_size": "1",
             "compatibility_threshold": "0.8",
-            "species_fitness_func": "<function max at 0x00000186D4A674C0>",
+            "species_fitness_func": "<function max at 0x0000023C0AE73EC0>",
             "species_number_calculate_by": "rank"
         }
     },
     "problem": {
         "pop_counter": "0",
-        "start_idx": "6310",
-        "end_idx": "6344"
+        "start_idx": "2292",
+        "end_idx": "2326"
     },
     "seed": "42",
     "fitness_target": "0.01",
-    "generation_limit": "30",
-    "pop_size": "89",
+    "generation_limit": "233",
+    "pop_size": "144",
     "best_genome": "None",
     "best_fitness": "-inf",
     "generation_timestamp": "None",
