@@ -14,11 +14,11 @@
                 "bias_lower_bound": "-5",
                 "bias_upper_bound": "5",
                 "aggregation_default": "0",
-                "aggregation_options": "[<function sum_ at 0x0000023C0C79AFC0>]",
+                "aggregation_options": "[<function sum_ at 0x000001A32282B060>]",
                 "aggregation_indices": "[0]",
                 "aggregation_replace_rate": "0.1",
                 "activation_default": "0",
-                "activation_options": "[<function tanh_ at 0x0000023C0C79B2E0>]",
+                "activation_options": "[<function tanh_ at 0x000001A32282B380>]",
                 "activation_indices": "[0]",
                 "activation_replace_rate": "0.1"
             },
@@ -42,18 +42,18 @@
                 "compatibility_disjoint": "1.0",
                 "compatibility_weight": "0.4"
             },
-            "output_transform": "<function tanh_ at 0x0000023C0C79B2E0>",
+            "output_transform": "<function tanh_ at 0x000001A32282B380>",
             "input_transform": "None",
             "input_idx": "[0 1 2 3 4 5 6 7]",
-            "output_idx": "[11]",
-            "all_init_nodes": "[ 0  1  2  3  4  5  6  7  8  9 10 11]",
-            "all_init_conns": "[[ 0  8]\n [ 0  9]\n [ 0 10]\n [ 1  8]\n [ 1  9]\n [ 1 10]\n [ 2  8]\n [ 2  9]\n [ 2 10]\n [ 3  8]\n [ 3  9]\n [ 3 10]\n [ 4  8]\n [ 4  9]\n [ 4 10]\n [ 5  8]\n [ 5  9]\n [ 5 10]\n [ 6  8]\n [ 6  9]\n [ 6 10]\n [ 7  8]\n [ 7  9]\n [ 7 10]\n [ 8 11]\n [ 9 11]\n [10 11]]"
+            "output_idx": "[10]",
+            "all_init_nodes": "[ 0  1  2  3  4  5  6  7  8  9 10]",
+            "all_init_conns": "[[ 0  8]\n [ 0  9]\n [ 1  8]\n [ 1  9]\n [ 2  8]\n [ 2  9]\n [ 3  8]\n [ 3  9]\n [ 4  8]\n [ 4  9]\n [ 5  8]\n [ 5  9]\n [ 6  8]\n [ 6  9]\n [ 7  8]\n [ 7  9]\n [ 8 10]\n [ 9 10]]"
         },
-        "pop_size": "144",
+        "pop_size": "610",
         "species_controller": {
-            "pop_size": "144",
-            "species_size": "5",
-            "species_arange": "[0 1 2 3 4]",
+            "pop_size": "610",
+            "species_size": "13",
+            "species_arange": "[ 0  1  2  3  4  5  6  7  8  9 10 11 12]",
             "max_stagnation": "15",
             "species_elitism": "2",
             "spawn_number_change_rate": "0.5",
@@ -61,19 +61,19 @@
             "survival_threshold": "0.1",
             "min_species_size": "1",
             "compatibility_threshold": "0.8",
-            "species_fitness_func": "<function max at 0x0000023C0AE73EC0>",
+            "species_fitness_func": "<function max at 0x000001A320EFFF60>",
             "species_number_calculate_by": "rank"
         }
     },
     "problem": {
         "pop_counter": "0",
-        "start_idx": "2292",
-        "end_idx": "2326"
+        "start_idx": "2425",
+        "end_idx": "2459"
     },
     "seed": "42",
     "fitness_target": "0.01",
-    "generation_limit": "233",
-    "pop_size": "144",
+    "generation_limit": "5",
+    "pop_size": "610",
     "best_genome": "None",
     "best_fitness": "-inf",
     "generation_timestamp": "None",
