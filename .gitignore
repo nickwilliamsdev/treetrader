@@ -7,6 +7,8 @@ __pycache__/
 hist_data/stocks/*
 hist_data/crypto/*
 checkpoints_muzero/*
+hist_data/*
+model_archive/tensorneat_checkpoints/*
 
 # Ignore all PyTorch model files
 *.pth
