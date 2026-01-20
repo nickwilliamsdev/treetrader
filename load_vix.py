@@ -11,8 +11,8 @@ def load_existing(csv_path: Path):
     if not csv_path.exists():
         cols = ["open", "high", "low", "close", "volume"]
         return pd.DataFrame(columns=cols).set_index(pd.DatetimeIndex([]))
-    df = pd.read_csv(csv_path, parse_dates=["date"])
-    df = df.set_index("date").sort_index()
+    df = pd.read_csv(csv_path, parse_dates=["index"])
+    df = df.set_index("index").sort_index()
     return df
 
 def fetch_yahoo(ticker: str, start_date: date, end_date: date) -> pd.DataFrame:
