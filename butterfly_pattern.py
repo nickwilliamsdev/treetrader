@@ -104,7 +104,7 @@ def plot_pattern(data, pattern, ticker="TICKER"):
 
 # --- Example Usage ---
 if __name__ == "__main__":
-    ticker = 'AAPL'
+    ticker = 'SPX'
     data, patterns = find_butterfly_patterns(ticker, period="1y", smooth_window=10)
 
     if patterns:
