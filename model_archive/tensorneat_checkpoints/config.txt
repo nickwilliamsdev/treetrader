@@ -14,11 +14,11 @@
                 "bias_lower_bound": "-5",
                 "bias_upper_bound": "5",
                 "aggregation_default": "0",
-                "aggregation_options": "[<function sum_ at 0x00000210D7AA0180>]",
+                "aggregation_options": "[<function sum_ at 0x0000026BDA2D4680>]",
                 "aggregation_indices": "[0]",
                 "aggregation_replace_rate": "0.1",
                 "activation_default": "0",
-                "activation_options": "[<function tanh_ at 0x00000210D7AA04A0>]",
+                "activation_options": "[<function tanh_ at 0x0000026BDA2D40E0>]",
                 "activation_indices": "[0]",
                 "activation_replace_rate": "0.1"
             },
@@ -42,7 +42,7 @@
                 "compatibility_disjoint": "1.0",
                 "compatibility_weight": "0.4"
             },
-            "output_transform": "<function tanh_ at 0x00000210D7AA04A0>",
+            "output_transform": "<function tanh_ at 0x0000026BDA2D40E0>",
             "input_transform": "None",
             "input_idx": "[0 1 2 3 4 5 6 7]",
             "output_idx": "[10]",
@@ -61,14 +61,14 @@
             "survival_threshold": "0.1",
             "min_species_size": "1",
             "compatibility_threshold": "0.8",
-            "species_fitness_func": "<function max at 0x00000210D7140FE0>",
+            "species_fitness_func": "<function max at 0x0000026BD76F1940>",
             "species_number_calculate_by": "rank"
         }
     },
     "problem": {
         "pop_counter": "0",
-        "start_idx": "3966",
-        "end_idx": "4000"
+        "start_idx": "2754",
+        "end_idx": "2788"
     },
     "seed": "42",
     "fitness_target": "0.01",
