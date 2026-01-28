@@ -6,7 +6,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 from diffevo import DDIMScheduler, BayesianGenerator
 from torch.nn.utils import parameters_to_vector, vector_to_parameters
-from utils.fitess_funcs import batched_fitness_function
+from utils.fitness_funcs import batched_fitness_function
 from api_wrappers.kraken_wrapper import KrakenWrapper
 kw = KrakenWrapper()
 dfs = kw.load_hist_files()
