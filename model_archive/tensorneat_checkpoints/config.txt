@@ -52,8 +52,8 @@
         "pop_size": "233",
         "species_controller": {
             "pop_size": "233",
-            "species_size": "13",
-            "species_arange": "[ 0  1  2  3  4  5  6  7  8  9 10 11 12]",
+            "species_size": "21",
+            "species_arange": "[ 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15 16 17 18 19 20]",
             "max_stagnation": "15",
             "species_elitism": "2",
             "spawn_number_change_rate": "0.5",
@@ -67,16 +67,16 @@
     },
     "problem": {
         "pop_counter": "0",
-        "start_idx": "3029",
-        "end_idx": "3063"
+        "start_idx": "1669",
+        "end_idx": "1703"
     },
     "seed": "42",
     "fitness_target": "0.1",
     "generation_limit": "100",
     "pop_size": "233",
-    "best_genome": "(Array([[ 0.        , -0.16840924,  0.        ,  0.        ],\n       [ 1.        ,  0.15138827,  0.        ,  0.        ],\n       [ 2.        , -0.07441475,  0.        ,  0.        ],\n       ...,\n       [        nan,         nan,         nan,         nan],\n       [        nan,         nan,         nan,         nan],\n       [        nan,         nan,         nan,         nan]],      dtype=float32, weak_type=True), Array([[ 0.0000000e+00,  1.4700000e+02, -2.6868165e-02],\n       [ 0.0000000e+00,  1.4800000e+02,  1.6751967e-01],\n       [ 0.0000000e+00,  1.4900000e+02,  2.1290531e-02],\n       ...,\n       [           nan,            nan,            nan],\n       [           nan,            nan,            nan],\n       [           nan,            nan,            nan]],      dtype=float32, weak_type=True))",
-    "best_fitness": "0.008120905",
-    "generation_timestamp": "1770020705.5838847",
+    "best_genome": "(Array([[ 0.        , -0.2004979 ,  0.        ,  0.        ],\n       [ 1.        ,  0.15138827,  0.        ,  0.        ],\n       [ 2.        , -0.1444096 ,  0.        ,  0.        ],\n       ...,\n       [        nan,         nan,         nan,         nan],\n       [        nan,         nan,         nan,         nan],\n       [        nan,         nan,         nan,         nan]],      dtype=float32, weak_type=True), Array([[ 0.0000000e+00,  1.4700000e+02, -2.6868165e-02],\n       [ 0.0000000e+00,  1.4800000e+02,  1.6751967e-01],\n       [ 0.0000000e+00,  1.4900000e+02,  2.1290531e-02],\n       ...,\n       [           nan,            nan,            nan],\n       [           nan,            nan,            nan],\n       [           nan,            nan,            nan]],      dtype=float32, weak_type=True))",
+    "best_fitness": "0.0061438805",
+    "generation_timestamp": "1770098823.9375374",
     "is_save": "True",
     "save_dir": "./model_archive/tensorneat_checkpoints",
     "genome_dir": "./model_archive/tensorneat_checkpoints\\genomes",
