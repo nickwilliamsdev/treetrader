@@ -67,8 +67,8 @@
     },
     "problem": {
         "pop_counter": "0",
-        "start_idx": "101",
-        "end_idx": "135"
+        "start_idx": "278",
+        "end_idx": "312"
     },
     "seed": "42",
     "fitness_target": "0.1",
