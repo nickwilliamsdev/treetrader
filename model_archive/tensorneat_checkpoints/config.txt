@@ -67,8 +67,8 @@
     },
     "problem": {
         "pop_counter": "0",
-        "start_idx": "73",
-        "end_idx": "107"
+        "start_idx": "60",
+        "end_idx": "94"
     },
     "seed": "42",
     "fitness_target": "0.1",
@@ -76,7 +76,7 @@
     "pop_size": "144",
     "best_genome": "None",
     "best_fitness": "-inf",
-    "generation_timestamp": "1771505305.6981473",
+    "generation_timestamp": "1771739259.9332368",
     "is_save": "True",
     "save_dir": "./model_archive/tensorneat_checkpoints",
     "genome_dir": "./model_archive/tensorneat_checkpoints\\genomes",
