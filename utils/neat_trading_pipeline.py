@@ -8,7 +8,7 @@ import numpy as np
 
 from tensorneat.algorithm import BaseAlgorithm
 from tensorneat.common import State, StatefulBaseClass
-from neat_trading_problem import TradingProblemBase
+from .neat_trading_problem import TradingProblemBase
 
 class TradingPipeline(StatefulBaseClass):
     def __init__(
@@ -93,7 +93,7 @@ class TradingPipeline(StatefulBaseClass):
         randkey_, randkey = jax.random.split(state.randkey)
 
         # setup epoch start
-        randStart = jax.random.randint(0, self.problem.input_data_len)
+        randStart = jax.random.randint(randkey_, 0, self.problem.input_data_len)
 
         pop = self.algorithm.ask(state)
 
