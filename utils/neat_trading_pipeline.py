@@ -103,7 +103,7 @@ class TradingPipeline(StatefulBaseClass):
 
         if not self.using_multidevice:      
             keys = jax.random.split(randkey_, self.pop_size)
-            fitnesses = jax.vmap(self.problem.evaluate, in_axes=(None, 0, None, 0))(
+            fitnesses = jax.vmap(self.problem.evaluate, in_axes=(None, 0, None, 0, 0))(
                 state, keys, self.algorithm.forward, pop_transformed, randStart
             )
         else: # using_multidevice
