@@ -94,7 +94,7 @@ class TradingPipeline(StatefulBaseClass):
 
         # setup epoch start
         randStart = jax.random.randint(randkey_, shape=(), minval=0, maxval=self.problem.input_data_len)
-
+        randStart_full = jnp.full((self.pop_size,), randStart)
         pop = self.algorithm.ask(state)
 
         pop_transformed = jax.vmap(self.algorithm.transform, in_axes=(None, 0))(
@@ -104,7 +104,7 @@ class TradingPipeline(StatefulBaseClass):
         if not self.using_multidevice:      
             keys = jax.random.split(randkey_, self.pop_size)
             fitnesses = jax.vmap(self.problem.evaluate, in_axes=(None, 0, None, 0, 0))(
-                state, keys, self.algorithm.forward, pop_transformed, randStart
+                state, keys, self.algorithm.forward, pop_transformed, randStart_full
             )
         else: # using_multidevice
             num_devices = jax.device_count()
